@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>圖片文字修改專家 - v20.9 全頁分析精準版</title>
+    <title>圖片文字修改專家 - v20.4 精簡穩定版 (修正優化)</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <!-- PDF Processing Libraries -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
@@ -18,8 +18,8 @@
     <script>
         // 設定 PDF.js Worker
         window.onload = function() {
-            if (window.pdfjsLib) {
-                window.pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+            if (typeof pdfjsLib !== 'undefined') {
+                pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
             }
             initDB(); 
         };
@@ -68,6 +68,7 @@
         .cursor-crosshair { cursor: crosshair; }
         .cursor-grab { cursor: grab; }
         .cursor-grabbing { cursor: grabbing; }
+        .cursor-move { cursor: move; } /* 新增移動游標 */
         .cursor-magic { cursor: url("data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIyNCIgaGVpZ2h0PSIyNCIgdmlld0JveD0iMCAwIDI0IDI0IiBmaWxsPSJub25lIiBzdHJva2U9IiM5MzMzZWEiIHN0cm9rZS13aWR0aD0iMiIgc3Ryb2tlLWxpbmVjYXA9InJvdW5kIiBzdHJva2UtbGluZWpvaW49InJvdW5kIj48cGF0aCBkPSJNMTQuNSAyYTMuNSAzLjUgMCAwIDEgNSA1bC0yLjUgMi41TDguNSAyMGwtNC41IDFsMS00LjVMMTQuNSAyeiIvPjxwYXRoIGQ9Ik0yMSAxMmwyIDItMiAyTTMgMTJsLTIgMiAyIDIiLz48L3N2Zz4=") 0 24, crosshair !important; }
         .cursor-dropper { cursor: url("data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIyNCIgaGVpZ2h0PSIyNCIgdmlld0JveD0iMCAwIDI0IDI0IiBmaWxsPSJub25lIiBzdHJva2U9ImJsYWNrIiBzdHJva2Utd2lkdGg9IjIiIHN0cm9rZS1saW5lY2FwPSJyb3VuZCIgc3Ryb2tlLWxpbmVqb2luPSJyb3VuZCI+PHBhdGggZD0iTTE0LjUgMmEzLjUgMy41IDAgMCAxIDUgNWwtMi41IDIuNUw4LjUgMjBsLTQuNSAxbDEtNC41TDE0LjUgMnoiLz48bGluZSB4MT0iMyIgeTE9IjIxIiB4Mj0iOSIgeTI9IjE1Ii8+PC9zdmc+") 0 24, crosshair !important; }
     </style>
@@ -101,7 +102,7 @@
         <div class="flex items-center gap-2">
             <div class="bg-blue-600 text-white p-2 rounded-lg"><i class="fas fa-file-pdf"></i></div>
             <div class="flex flex-col">
-                <h1 class="text-lg font-bold text-gray-800 leading-tight">圖片文字修改專家 <span class="text-xs bg-red-600 text-white px-2 py-0.5 rounded font-mono ml-1">v20.9</span></h1>
+                <h1 class="text-lg font-bold text-gray-800 leading-tight">圖片文字修改專家 <span class="text-xs bg-red-600 text-white px-2 py-0.5 rounded font-mono ml-1">v20.4 精簡版</span></h1>
                 <span class="text-[10px] text-gray-500">NotebookLM 簡報專用編輯器</span>
             </div>
         </div>
@@ -113,6 +114,7 @@
             
             <div class="flex rounded-lg shadow-sm" role="group">
                 <button id="btnExportImg" onclick="downloadImage()" class="bg-white border border-gray-300 hover:bg-gray-50 text-gray-700 px-4 py-2 rounded-lg text-sm font-medium transition disabled:opacity-50"><i class="fas fa-image"></i> 單頁圖片</button>
+                
                 <button id="btnExportPPT" onclick="downloadPPTX()" class="hidden bg-white border-t border-b border-r border-gray-300 hover:bg-gray-50 text-orange-600 px-4 py-2 text-sm font-medium transition flex items-center"><i class="fas fa-file-powerpoint mr-1"></i> PPTX</button>
                 <button id="btnExportPDF" onclick="downloadPDF()" class="hidden bg-blue-600 border border-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-r-lg text-sm font-medium transition"><i class="fas fa-file-pdf"></i> PDF</button>
             </div>
@@ -135,8 +137,8 @@
                 <button onclick="setTool('select')" id="toolSelect" class="tool-btn active p-2 rounded hover:bg-white transition col-span-1" title="選取"><i class="fas fa-mouse-pointer"></i></button>
                 <button onclick="setTool('hand')" id="toolHand" class="tool-btn p-2 rounded hover:bg-white transition col-span-1" title="平移"><i class="fas fa-hand-paper"></i></button>
                 <button onclick="setTool('rect')" id="toolRect" class="tool-btn p-2 rounded hover:bg-white transition col-span-1" title="色塊"><i class="fas fa-vector-square"></i></button>
-                <button onclick="adjustZoom(-0.1)" class="p-2 rounded bg-white hover:bg-gray-100 transition col-span-1"><i class="fas fa-minus"></i></button>
-                <button onclick="adjustZoom(0.1)" class="p-2 rounded bg-white hover:bg-gray-100 transition col-span-1"><i class="fas fa-plus"></i></button>
+                <button onclick="adjustZoom(-0.02)" class="p-2 rounded bg-white hover:bg-gray-100 transition col-span-1"><i class="fas fa-minus"></i></button>
+                <button onclick="adjustZoom(0.02)" class="p-2 rounded bg-white hover:bg-gray-100 transition col-span-1"><i class="fas fa-plus"></i></button>
                 <button onclick="resetView()" class="p-2 rounded bg-white hover:bg-gray-100 transition col-span-1"><i class="fas fa-expand"></i></button>
                 <div class="col-span-6 text-center text-[10px] text-gray-400 mt-1" id="zoomLevel">100%</div>
             </div>
@@ -166,14 +168,7 @@
 
             <!-- 主要操作按鈕 -->
             <div id="controls" class="space-y-3 opacity-50 pointer-events-none transition-opacity duration-300 pb-8">
-                <!-- 新增全頁分析按鈕 (NEW Badge) -->
-                <div class="mb-2">
-                    <button id="btnAnalyze" onclick="analyzePage()" class="w-full bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white py-2 rounded-lg font-bold transition flex items-center justify-center gap-2 shadow-sm text-xs">
-                        <i class="fas fa-search-plus"></i> 全頁自動分析 <span class="bg-yellow-400 text-black text-[9px] px-1 rounded">NEW</span>
-                    </button>
-                    <p class="text-[10px] text-gray-400 text-center mt-1">※ 請先匯入檔案才能使用此功能</p>
-                </div>
-
+                
                 <div class="space-y-1">
                     <label class="block text-xs font-bold text-gray-500 uppercase tracking-wider">選取操作</label>
                     <div class="grid grid-cols-2 gap-2">
@@ -242,7 +237,7 @@
     </div>
 
     <script>
-        // --- 1. Global Utilities ---
+        // --- 1. Global Utilities (Moved to Top) ---
         function showToast(msg, isError = false) {
             const t = document.getElementById('toast');
             if(!t) return;
@@ -272,15 +267,15 @@
         let currentTool = 'select';
         let isSelecting = false, selectionBox = { x: 0, y: 0, w: 0, h: 0, active: false };
         let selectionStartX = 0, selectionStartY = 0; 
-        
-        // Explicitly define global state variables
+        // 修正：補回遺失的全域變數
         let isCreatingRect = false, newRectStart = { x: 0, y: 0 };
         let isDraggingView = false, lastMouseX = 0, lastMouseY = 0;
         let isDraggingItem = false, isResizingItem = false, dragOffset = { x: 0, y: 0 }, resizeStart = { w:0, h:0, x:0, y:0, fontSize:0 }; 
         let isDraggingSelection = false, isDrawingMask = false;
-        
         let historyStack = [], historyPointer = -1; const MAX_HISTORY = 20;
         let db; const DB_NAME='ImgEditorDB', DB_VERSION=1, STORE_NAME='sessions';
+        
+        // 新增：目前來源是否為 PDF
         let isPdfSource = false;
 
         // --- Classes ---
@@ -288,7 +283,8 @@
             constructor(x, y, text, fontSize = 30, w = 0, h = 0) {
                 this.x = Math.floor(x || 0); this.y = Math.floor(y || 0); 
                 this.text = text; this.fontSize = fontSize;
-                this.fontFamily = "'Noto Sans TC', sans-serif"; this.fontWeight = 'bold';
+                this.fontFamily = "'Noto Sans TC', sans-serif"; 
+                this.fontWeight = 'normal'; // Fix: Default to normal
                 this.color = '#000000'; this.hasBackground = false; this.bgColor = '#ffffff';
                 this.padding = 8; this.textAlign = 'left'; this.lineHeight = 1.2;
                 this.letterSpacing = 0; 
@@ -296,6 +292,7 @@
                 this.height = Math.max(20, Math.floor(h || 50)); 
             }
         }
+        // Updated PatchBlock to support texture image
         class PatchBlock { 
             constructor(x, y, w, h, color, src) { 
                 this.x=x; this.y=y; this.w=w; this.h=h; this.color=color; this.src=src; this.imgElement=null;
@@ -339,7 +336,7 @@
                 id:'latest', 
                 slides:sData, 
                 timestamp:Date.now(),
-                isPdfSource: isPdfSource 
+                isPdfSource: isPdfSource // Save PDF state
             }, 'latest'); 
             showToast("已自動備份"); 
         }
@@ -352,8 +349,8 @@
                 const d=e.target.result; 
                 if(!d){loadingOverlay.classList.add('hidden');return;} 
                 
-                isPdfSource = !!d.isPdfSource; 
-                updateExportVisibility();
+                isPdfSource = !!d.isPdfSource; // Restore PDF state
+                updateExportVisibility(); // Update UI
 
                 slides=[]; 
                 for(const s of d.slides){ 
@@ -415,19 +412,26 @@
             historyStack=[]; historyPointer=-1; recordHistory(); resetView(); draw();
         }
         
+        // --- UI Updates ---
         function updateExportVisibility() {
             const btnPPT = document.getElementById('btnExportPPT');
             const btnPDF = document.getElementById('btnExportPDF');
             const btnImg = document.getElementById('btnExportImg');
             
             if (isPdfSource) {
-                btnPPT.classList.remove('hidden'); btnPPT.classList.add('flex');
+                // PDF Mode: Show All
+                btnPPT.classList.remove('hidden');
+                btnPPT.classList.add('flex'); // Ensure flex display for icon
                 btnPDF.classList.remove('hidden');
-                btnImg.classList.remove('rounded-lg'); btnImg.classList.add('rounded-l-lg');
+                btnImg.classList.remove('rounded-lg');
+                btnImg.classList.add('rounded-l-lg'); // Adjust corners for group
             } else {
-                btnPPT.classList.add('hidden'); btnPPT.classList.remove('flex');
+                // Image Mode: Hide PPT/PDF, Fix corners
+                btnPPT.classList.add('hidden');
+                btnPPT.classList.remove('flex');
                 btnPDF.classList.add('hidden');
-                btnImg.classList.remove('rounded-l-lg'); btnImg.classList.add('rounded-lg');
+                btnImg.classList.remove('rounded-l-lg');
+                btnImg.classList.add('rounded-lg');
             }
         }
 
@@ -437,18 +441,36 @@
                 const file = e.target.files[0];
                 loadingOverlay.classList.remove('hidden'); 
                 loadingStatus.textContent="讀取中..."; 
-                if(db) { const tx = db.transaction(STORE_NAME, 'readwrite'); tx.objectStore(STORE_NAME).delete('latest'); }
+                
+                if(db) {
+                    const tx = db.transaction(STORE_NAME, 'readwrite');
+                    tx.objectStore(STORE_NAME).delete('latest');
+                }
+                
                 if(file.type==='application/pdf'){ 
-                    if(typeof pdfjsLib!=='undefined') { isPdfSource = true; await handlePDF(file); } 
-                    else { alert("PDF 未載入"); loadingOverlay.classList.add('hidden'); return; }
-                } else { isPdfSource = false; await handleImage(file); } 
-                updateExportVisibility();
+                    if(typeof pdfjsLib!=='undefined') {
+                        isPdfSource = true; // Set Flag
+                        await handlePDF(file); 
+                    } else {
+                        alert("PDF 未載入");
+                        loadingOverlay.classList.add('hidden');
+                        return;
+                    }
+                } else { 
+                    isPdfSource = false; // Set Flag
+                    await handleImage(file); 
+                } 
+                
+                updateExportVisibility(); // Update UI Buttons
+                
                 loadingOverlay.classList.add('hidden'); 
                 controls.classList.remove('opacity-50','pointer-events-none'); 
                 placeholder.classList.add('hidden'); 
                 canvas.classList.remove('hidden'); 
-            } e.target.value=''; 
+            } 
+            e.target.value=''; 
         };
+        
         overlayInput.onchange=(e)=>{ if(e.target.files[0]&&img.src){ const r=new FileReader(); r.onload=(ev)=>{ const i=new Image(); i.onload=()=>{ const s=Math.min(1,(canvas.width*0.5)/i.width); const b=new ImageBlock((canvas.width-i.width*s)/2,(canvas.height-i.height*s)/2,i.src,i.width,i.height); b.scale=s; b.load(()=>{images.push(b); recordHistory(); draw(); selectItem('image',images.length-1);}); }; i.src=ev.target.result; }; r.readAsDataURL(e.target.files[0]); } e.target.value=''; };
         async function handleImage(f){ return new Promise(resolve=>{ const r=new FileReader(); r.onload=(e)=>{ const i=new Image(); i.onload=()=>{ slides=[{originalImage:i,thumbnail:i.src,texts:[],patches:[],blocks:[],images:[],maskStrokes:[]}]; renderSlideThumbnails(); loadSlide(0, false); resolve(); }; i.src=e.target.result; }; r.readAsDataURL(f); }); }
         async function handlePDF(f){ try { const d=await f.arrayBuffer(); const pdf=await pdfjsLib.getDocument({data:d}).promise; slides=[]; for(let i=1;i<=pdf.numPages;i++){ loadingStatus.textContent=`處理頁面 ${i}/${pdf.numPages}...`; const p=await pdf.getPage(i); const v=p.getViewport({scale:2.0}); const c=document.createElement('canvas'); c.width=v.width; c.height=v.height; await p.render({canvasContext:c.getContext('2d'),viewport:v}).promise; const s=c.toDataURL('image/jpeg',0.85); const io=new Image(); io.src=s; await new Promise(r=>io.onload=r); slides.push({originalImage:io,thumbnail:s,texts:[],patches:[],blocks:[],images:[],maskStrokes:[]}); } renderSlideThumbnails(); loadSlide(0, false); } catch(e){console.error(e);alert("PDF 錯誤");} }
@@ -467,12 +489,26 @@
                 
                 const idata = tx.getImageData(0,0,sw,sh).data;
                 let r=0, g=0, b=0, n=0;
-                points.forEach(p => { const idx = (p.y*sw+p.x)*4; if(idx<0||idx>=idata.length||idata[idx+3]<50) return; r+=idata[idx]; g+=idata[idx+1]; b+=idata[idx+2]; n++; });
+                points.forEach(p => {
+                    const idx = (p.y*sw+p.x)*4;
+                    if(idx<0||idx>=idata.length) return;
+                    if(idata[idx+3]<50) return; // Ignore transparent
+                    r+=idata[idx]; g+=idata[idx+1]; b+=idata[idx+2]; n++;
+                });
+                
                 if(n===0) return '#ffffff';
                 return "#"+((1<<24)+(Math.round(r/n)<<16)+(Math.round(g/n)<<8)+Math.round(b/n)).toString(16).slice(1);
             } catch(e){return '#ffffff';}
         }
-        function generateSolidPatch(x,y,w,h) { const c=document.createElement('canvas'); c.width=w; c.height=h; const xd=c.getContext('2d'); xd.fillStyle=getDominantBorderColor(x,y,w,h); xd.fillRect(0,0,w,h); return c.toDataURL(); }
+
+        // Use Solid Patch for OCR to ensure full coverage
+        function generateSolidPatch(x,y,w,h) {
+             const c=document.createElement('canvas'); c.width=w; c.height=h; const xd=c.getContext('2d');
+             xd.fillStyle = getDominantBorderColor(x,y,w,h);
+             xd.fillRect(0,0,w,h);
+             return c.toDataURL();
+        }
+
         function generateInpaintPatch(x, y, w, h, srcImg) {
             const tCanvas = document.createElement('canvas'); tCanvas.width=w; tCanvas.height=h; const tCtx = tCanvas.getContext('2d');
             const bgHex = getDominantBorderColor(x,y,w,h); tCtx.fillStyle=bgHex; tCtx.fillRect(0,0,w,h);
@@ -482,143 +518,49 @@
             const sm=Math.max(1,Math.min(w,h)/8), sc=document.createElement('canvas'); sc.width=sm; sc.height=sm; sc.getContext('2d').drawImage(bc,0,0,w,h,0,0,sm,sm);
             tCtx.globalAlpha=0.9; tCtx.drawImage(sc,0,0,sm,sm,0,0,w,h); tCtx.globalAlpha=1; return tCanvas.toDataURL();
         }
+        
+        // Helper to detect text color
         function detectContentColor(x, y, w, h, bgHex) {
              const bgR=parseInt(bgHex.slice(1,3),16), bgG=parseInt(bgHex.slice(3,5),16), bgB=parseInt(bgHex.slice(5,7),16);
              const bgLum = 0.299*bgR + 0.587*bgG + 0.114*bgB;
+             
+             // Crop
              const tC=document.createElement('canvas'); tC.width=w; tC.height=h; const tx=tC.getContext('2d'); 
-             tx.drawImage(img,x,y,w,h,0,0,w,h); const d = tx.getImageData(0,0,w,h).data;
-             let tr=0,tg=0,tb=0,cnt=0; const cx=Math.floor(w/2), cy=Math.floor(h/2), rad=Math.min(w,h)/3;
-             for(let sy=cy-rad; sy<cy+rad; sy+=2){ for(let sx=cx-rad; sx<cx+rad; sx+=2){ const idx=(Math.floor(sy)*w+Math.floor(sx))*4; if(idx<0||idx>=d.length) continue; const r=d[idx], g=d[idx+1], b=d[idx+2]; const lum = 0.299*r+0.587*g+0.114*b; if((bgLum>128 && lum<bgLum-60) || (bgLum<=128 && lum>bgLum+60)){ tr+=r; tg+=g; tb+=b; cnt++; } } }
+             tx.drawImage(img,x,y,w,h,0,0,w,h);
+             const d = tx.getImageData(0,0,w,h).data;
+             
+             let tr=0,tg=0,tb=0,cnt=0;
+             const cx=Math.floor(w/2), cy=Math.floor(h/2), rad=Math.min(w,h)/3;
+             for(let sy=cy-rad; sy<cy+rad; sy+=2){
+                 for(let sx=cx-rad; sx<cx+rad; sx+=2){
+                     const idx=(Math.floor(sy)*w+Math.floor(sx))*4;
+                     if(idx<0||idx>=d.length) continue;
+                     const r=d[idx], g=d[idx+1], b=d[idx+2];
+                     const lum = 0.299*r+0.587*g+0.114*b;
+                     if((bgLum>128 && lum<bgLum-60) || (bgLum<=128 && lum>bgLum+60)){
+                         tr+=r; tg+=g; tb+=b; cnt++;
+                     }
+                 }
+             }
              return cnt>0 ? "#"+((1<<24)+(Math.round(tr/cnt)<<16)+(Math.round(tg/cnt)<<8)+Math.round(tb/cnt)).toString(16).slice(1) : (bgLum>128?'#000000':'#ffffff');
         }
+
+        // Strict Refit: Ensure text fits INSIDE box width/height
         function refitTextBlock(b) {
-            let minS=10, maxS=200, best=20; const maxW = b.width - b.padding*2, maxH = b.height - b.padding*2; ctx.font=`${b.fontWeight} 200px ${b.fontFamily}`; if (b.letterSpacing) ctx.letterSpacing = b.letterSpacing + "px";
-            while(minS<=maxS){ const mid=Math.floor((minS+maxS)/2); ctx.font=`${b.fontWeight} ${mid}px ${b.fontFamily}`; const lines=b.text.split('\n'); let w=0; lines.forEach(l=>w=Math.max(w,ctx.measureText(l).width)); const h=lines.length*mid*b.lineHeight; if(w<=maxW && h<=maxH) { best=mid; minS=mid+1; } else maxS=mid-1; } b.fontSize=best; ctx.letterSpacing = "0px";
-        }
-
-        // 7. Full Page Analysis with Smart Grouping (Corrected & Enhanced)
-        async function analyzePage() {
-            if(!img.src) return;
-            loadingOverlay.classList.remove('hidden'); loadingStatus.textContent = "全頁分析中 (智慧分群)...";
-            try {
-                const worker = await Tesseract.createWorker('chi_tra+eng');
-                const tCanvas = document.createElement('canvas'); tCanvas.width = img.width; tCanvas.height = img.height;
-                const tx = tCanvas.getContext('2d'); tx.drawImage(img, 0, 0);
-                const res = await worker.recognize(tCanvas.toDataURL()); await worker.terminate();
-                const words = res.data.words;
-                
-                if (words && words.length > 0) {
-                    recordHistory(); 
-                    
-                    // 1. Sort words top-to-bottom, left-to-right (Crucial for correct grouping)
-                    words.sort((a, b) => {
-                        const lineDiff = Math.abs((a.bbox.y0 + a.bbox.y1)/2 - (b.bbox.y0 + b.bbox.y1)/2);
-                        if (lineDiff > 10) return a.bbox.y0 - b.bbox.y0; 
-                        return a.bbox.x0 - b.bbox.x0; 
-                    });
-
-                    let groups = [];
-                    let currentGroup = null;
-
-                    // Grouping criteria
-                    const isSameLine = (w1, w2) => {
-                        // Check vertical overlap
-                        const h1 = w1.bbox.y1 - w1.bbox.y0;
-                        const h2 = w2.bbox.y1 - w2.bbox.y0;
-                        const mid1 = (w1.bbox.y0 + w1.bbox.y1) / 2;
-                        const mid2 = (w2.bbox.y0 + w2.bbox.y1) / 2;
-                        return Math.abs(mid1 - mid2) < Math.max(h1, h2) * 0.5;
-                    };
-                    const isHeightSimilar = (h1, h2) => Math.abs(h1 - h2) / Math.max(h1, h2) < 0.4; // 40% difference tolerance
-                    
-                    // Helper to sample color from word center
-                    const getWordColor = (bbox) => {
-                        const cx = Math.floor((bbox.x0 + bbox.x1) / 2);
-                        const cy = Math.floor((bbox.y0 + bbox.y1) / 2);
-                        const p = tx.getImageData(cx, cy, 1, 1).data;
-                        return { r: p[0], g: p[1], b: p[2] };
-                    };
-                    const isColorSimilar = (c1, c2) => (Math.abs(c1.r - c2.r) + Math.abs(c1.g - c2.g) + Math.abs(c1.b - c2.b)) < 150; // Tolerance
-
-                    for (let word of words) {
-                        if (word.confidence < 60 || word.text.trim().length === 0) continue;
-                        
-                        const bbox = word.bbox; 
-                        const h = bbox.y1 - bbox.y0;
-                        const color = getWordColor(bbox);
-
-                        if (!currentGroup) {
-                            currentGroup = { words: [word], minX: bbox.x0, minY: bbox.y0, maxX: bbox.x1, maxY: bbox.y1, avgH: h, color: color };
-                        } else {
-                            const lastWord = currentGroup.words[currentGroup.words.length - 1];
-                            const sameLine = isSameLine({bbox: {y0: currentGroup.minY, y1: currentGroup.maxY}}, word);
-                            
-                            // Distance check: Horizontal gap
-                            const dist = bbox.x0 - lastWord.bbox.x1;
-                            const isNear = dist < (Math.max(currentGroup.avgH, h) * 1.5); // Allow some spacing
-
-                            const sizeSim = isHeightSimilar(currentGroup.avgH, h);
-                            const colSim = isColorSimilar(currentGroup.color, color);
-
-                            if (sameLine && isNear && sizeSim && colSim) {
-                                currentGroup.words.push(word);
-                                currentGroup.minX = Math.min(currentGroup.minX, bbox.x0);
-                                currentGroup.minY = Math.min(currentGroup.minY, bbox.y0);
-                                currentGroup.maxX = Math.max(currentGroup.maxX, bbox.x1);
-                                currentGroup.maxY = Math.max(currentGroup.maxY, bbox.y1);
-                                currentGroup.avgH = (currentGroup.avgH * (currentGroup.words.length - 1) + h) / currentGroup.words.length;
-                            } else {
-                                groups.push(currentGroup);
-                                currentGroup = { words: [word], minX: bbox.x0, minY: bbox.y0, maxX: bbox.x1, maxY: bbox.y1, avgH: h, color: color };
-                            }
-                        }
-                    }
-                    if (currentGroup) groups.push(currentGroup);
-
-                    let processedCount = 0;
-                    for (let g of groups) {
-                        const padding = 2; 
-                        const x = Math.max(0, g.minX - padding);
-                        const y = Math.max(0, g.minY - padding);
-                        const w = Math.min(img.width - x, (g.maxX - g.minX) + padding * 2);
-                        const h = Math.min(img.height - y, (g.maxY - g.minY) + padding * 2);
-                        
-                        const text = g.words.map(w => w.text).join(' ');
-                        const bgHex = getDominantBorderColor(x, y, w, h);
-                        const txtColor = detectContentColor(x, y, w, h, bgHex);
-
-                        // Use Solid Patch for cleanest background removal
-                        const pSrc = generateSolidPatch(x, y, w, h);
-                        const pIb = new PatchBlock(x, y, w, h, bgHex, pSrc);
-                        await new Promise(r => pIb.load(r));
-                        patches.push(pIb);
-                        
-                        const nb = new TextBlock(x, y, text, 20, w, h);
-                        nb.hasBackground = false; 
-                        nb.color = txtColor;
-                        nb.bgColor = bgHex;
-                        refitTextBlock(nb);
-                        texts.push(nb);
-                        
-                        processedCount++;
-                    }
-                    
-                    if(processedCount > 0) {
-                        draw();
-                        showToast(`已分析並建立 ${processedCount} 個文字區塊`);
-                    } else {
-                        showToast("未偵測到清晰文字", true);
-                    }
-                } else {
-                    showToast("未偵測到文字", true);
-                }
-
-            } catch (e) {
-                console.error(e);
-                alert("分析失敗: " + e.message);
-            } finally {
-                loadingOverlay.classList.add('hidden');
+            let minS=10, maxS=200, best=20; 
+            const maxW = b.width - b.padding*2, maxH = b.height - b.padding*2;
+            ctx.font=`${b.fontWeight} 200px ${b.fontFamily}`;
+            if (b.letterSpacing) ctx.letterSpacing = b.letterSpacing + "px";
+            
+            while(minS<=maxS){
+                const mid=Math.floor((minS+maxS)/2); ctx.font=`${b.fontWeight} ${mid}px ${b.fontFamily}`;
+                const lines=b.text.split('\n'); let w=0; lines.forEach(l=>w=Math.max(w,ctx.measureText(l).width));
+                const h=lines.length*mid*b.lineHeight;
+                if(w<=maxW && h<=maxH) { best=mid; minS=mid+1; } else maxS=mid-1;
             }
+            b.fontSize=best;
+            // Clear spacing for other ops
+            ctx.letterSpacing = "0px";
         }
 
         async function runOCR() {
@@ -626,75 +568,239 @@
             const box={...selectionBox}; 
             if(box.w<5||box.h<5) { showToast("範圍太小",true); return; }
             selectionBox.active=false; draw(); loadingOverlay.classList.remove('hidden'); loadingStatus.textContent="OCR 辨識中...";
+            
             try {
                 const w=Math.floor(box.w), h=Math.floor(box.h), x=Math.floor(box.x), y=Math.floor(box.y);
                 const tc=document.createElement('canvas'); tc.width=w; tc.height=h; const tx=tc.getContext('2d'); 
                 tx.drawImage(img,x,y,w,h,0,0,w,h);
                 const idata=tx.getImageData(0,0,w,h); const d=idata.data;
-                const bgHex = getDominantBorderColor(x,y,w,h); const txtColor = detectContentColor(x,y,w,h,bgHex);
+
+                // Color Detection
+                const bgHex = getDominantBorderColor(x,y,w,h);
+                const txtColor = detectContentColor(x,y,w,h,bgHex);
+                
+                // Binarize if very dark
                 const bgR=parseInt(bgHex.slice(1,3),16), bgG=parseInt(bgHex.slice(3,5),16), bgB=parseInt(bgHex.slice(5,7),16);
                 const bgLum = 0.299*bgR + 0.587*bgG + 0.114*bgB;
-                if(bgLum <= 80) { for(let i=0;i<d.length;i+=4){ d[i]=255-d[i]; d[i+1]=255-d[i+1]; d[i+2]=255-d[i+2]; } tx.putImageData(idata,0,0); }
-                const worker=await Tesseract.createWorker('chi_tra+eng'); const res=await worker.recognize(tc.toDataURL()); await worker.terminate();
-                let txt=res.data.text.replace(/\s+/g,'').replace(/\n/g,'');
+                if(bgLum <= 80) {
+                     for(let i=0;i<d.length;i+=4){ d[i]=255-d[i]; d[i+1]=255-d[i+1]; d[i+2]=255-d[i+2]; } 
+                     tx.putImageData(idata,0,0); 
+                }
+
+                const worker=await Tesseract.createWorker('chi_tra+eng');
+                const res=await worker.recognize(tc.toDataURL()); await worker.terminate();
+                
+                // Fix: Preserve structure by splitting lines, trimming, filtering empty, then rejoining with newlines
+                let txt = res.data.text
+                    .split(/\r?\n/)
+                    .map(l => l.replace(/\s/g, '').trim()) // Removing spaces inside lines (for Chinese optimization)
+                    .filter(l => l.length > 0)
+                    .join('\n');
+                
                 if(txt.length>0) {
                     const pSrc = generateSolidPatch(x, y, w, h);
                     const pIb = new PatchBlock(x, y, w, h, bgHex, pSrc); 
-                    await new Promise(r=>pIb.load(r)); patches.push(pIb);
-                    const nb=new TextBlock(x,y,txt,20,w,h); nb.hasBackground=false; nb.color=txtColor; nb.bgColor=bgHex; 
-                    refitTextBlock(nb); texts.push(nb); selectedIndex = texts.length-1; selectedType = 'text';
-                    recordHistory(); draw(); showToast("OCR 成功"); 
-                    updateInputs(); ['textProperties','imageProperties','blockProperties'].forEach(k=>document.getElementById(k).classList.add('hidden')); document.getElementById('textProperties').classList.remove('hidden');
+                    await new Promise(r=>pIb.load(r));
+                    patches.push(pIb);
+
+                    // Font Weight Detection Logic - Enhanced
+                    let boldCount = 0;
+                    let wordCount = 0;
+                    
+                    if (res.data.words) {
+                        res.data.words.forEach(w => {
+                            let isBold = w.is_bold;
+                            // Safer check for different Tesseract versions
+                            if (w.font_properties && w.font_properties.is_bold) isBold = true;
+                            if (w.font_name) {
+                                const fn = w.font_name.toLowerCase();
+                                if (fn.includes('bold') || fn.includes('black') || fn.includes('heavy')) isBold = true;
+                            }
+                            if (isBold) boldCount++;
+                            wordCount++;
+                        });
+                    }
+                    
+                    // Logic 1: Tesseract Metadata
+                    let detectedWeight = (boldCount > 0) ? 'bold' : 'normal';
+
+                    // Logic 2: Pixel Density Fallback (For CJK fonts where Tesseract fails)
+                    // If Tesseract says "normal", we double check the ink density.
+                    if (detectedWeight === 'normal' && res.data.words && res.data.words.length > 0) {
+                        let totalInk = 0;
+                        let totalArea = 0;
+                        
+                        // Create a simple grayscale map 0-1
+                        const gray = new Uint8Array(w * h);
+                        for(let i=0; i<d.length; i+=4) {
+                            // Invert if background is dark, otherwise normal
+                            const lum = 0.299*d[i] + 0.587*d[i+1] + 0.114*d[i+2];
+                            const isInk = (bgLum > 128) ? (lum < 160) : (lum > 100); // Thresholds
+                            gray[i/4] = isInk ? 1 : 0;
+                        }
+
+                        res.data.words.forEach(wd => {
+                            const b = wd.bbox;
+                            const bx0 = Math.max(0, b.x0), by0 = Math.max(0, b.y0);
+                            const bx1 = Math.min(w, b.x1), by1 = Math.min(h, b.y1);
+                            let wInk = 0;
+                            let wArea = (bx1-bx0)*(by1-by0);
+                            if (wArea > 0) {
+                                for(let py=by0; py<by1; py++) {
+                                    for(let px=bx0; px<bx1; px++) {
+                                        if(gray[py*w + px] === 1) wInk++;
+                                    }
+                                }
+                                totalInk += wInk;
+                                totalArea += wArea;
+                            }
+                        });
+
+                        const density = totalArea > 0 ? (totalInk / totalArea) : 0;
+                        // Heuristic: Bold CJK usually has density > 0.38~0.4
+                        if (density > 0.40) {
+                            detectedWeight = 'bold';
+                            // console.log("Auto-detected bold via density:", density);
+                        }
+                    }
+
+                    // Fix: Default to normal weight, let user make it bold if needed
+                    const nb=new TextBlock(x,y,txt,20,w,h); 
+                    nb.fontWeight = detectedWeight; // Apply detected weight
+                    nb.hasBackground=false; 
+                    nb.color=txtColor; 
+                    nb.bgColor=bgHex; 
+                    
+                    refitTextBlock(nb);
+                    texts.push(nb);
+                    
+                    selectedIndex = texts.length-1; 
+                    selectedType = 'text';
+                    
+                    recordHistory(); draw(); 
+                    showToast("OCR 成功"); 
+                    updateInputs();
+                    ['textProperties','imageProperties','blockProperties'].forEach(k=>document.getElementById(k).classList.add('hidden'));
+                    document.getElementById('textProperties').classList.remove('hidden');
                 } else showToast("未辨識出文字",true);
             } catch(e){console.error(e);alert("OCR 錯誤: "+(e.message||"未知"));} finally{loadingOverlay.classList.add('hidden');}
         }
 
+        // 5. 截圖去背 (Magic Crop) - 改名並修正邏輯
         function magicCrop() {
              if (!selectionBox.active) return;
              const box = {...selectionBox}; selectionBox.active = false; draw();
              loadingOverlay.classList.remove('hidden'); loadingStatus.textContent = "截圖去背中...";
+
              setTimeout(() => {
                  const w = Math.floor(box.w), h = Math.floor(box.h);
                  const tCanvas = document.createElement('canvas'); tCanvas.width = w; tCanvas.height = h;
                  const tCtx = tCanvas.getContext('2d');
                  tCtx.drawImage(img, box.x, box.y, box.w, box.h, 0, 0, w, h);
-                 const idata = tCtx.getImageData(0,0,w,h); const d = idata.data;
-                 const bgR = d[0], bgG = d[1], bgB = d[2]; const stack = []; const vis = new Uint8Array(w*h);
-                 for(let x=0; x<w; x++) { stack.push([x,0]); stack.push([x,h-1]); } for(let y=0; y<h; y++) { stack.push([0,y]); stack.push([w-1,y]); }
+                 
+                 const idata = tCtx.getImageData(0,0,w,h);
+                 const d = idata.data;
+                 
+                 // 去背邏輯: 從四個角落採樣背景色，進行擴散消除
+                 const bgR = d[0], bgG = d[1], bgB = d[2];
+                 const stack = []; const visited = new Uint8Array(w*h);
+                 for(let x=0; x<w; x++) { stack.push([x,0]); stack.push([x,h-1]); }
+                 for(let y=0; y<h; y++) { stack.push([0,y]); stack.push([w-1,y]); }
+                 
                  while(stack.length > 0) {
-                     const [x,y] = stack.pop(); if(x<0||x>=w||y<0||y>=h) continue;
-                     const p = y*w+x; if(vis[p]) continue; vis[p]=1;
-                     const idx = p*4; const dist = (d[idx]-bgR)**2 + (d[idx+1]-bgG)**2 + (d[idx+2]-bgB)**2;
-                     if(dist < 3000) { d[idx+3] = 0; stack.push([x+1,y]); stack.push([x-1,y]); stack.push([x,y+1]); stack.push([x,y-1]); }
+                     const [x,y] = stack.pop();
+                     if(x<0||x>=w||y<0||y>=h) continue;
+                     const p = y*w+x;
+                     if(visited[p]) continue; visited[p]=1;
+                     const idx = p*4;
+                     const dist = (d[idx]-bgR)**2 + (d[idx+1]-bgG)**2 + (d[idx+2]-bgB)**2;
+                     if(dist < 3000) { 
+                         d[idx+3] = 0; // 設為透明
+                         stack.push([x+1,y]); stack.push([x-1,y]); stack.push([x,y+1]); stack.push([x,y-1]);
+                     }
                  }
                  tCtx.putImageData(idata, 0, 0);
+
+                 // 1. 產生純色補丁修補原圖 (填補空洞，不選取，無框線)
                  const patchSrc = generateInpaintPatch(box.x, box.y, w, h, img);
                  const bgHex = getDominantBorderColor(box.x, box.y, w, h);
+                 // Using PatchBlock with src for textured background that is NOT selectable
                  const patch = new PatchBlock(box.x, box.y, w, h, bgHex, patchSrc);
+                 
+                 // 2. 產生物件圖層 (去背後的物件，可選取)
                  const cutoutIb = new ImageBlock(box.x, box.y, tCanvas.toDataURL(), box.w, box.h);
-                 patch.load(() => { patches.push(patch); cutoutIb.load(()=>{ images.push(cutoutIb); loadingOverlay.classList.add('hidden'); recordHistory(); selectItem('image', images.length - 1); draw(); showToast("已分離物件並填補背景"); }); });
+                 
+                 patch.load(() => {
+                    patches.push(patch); 
+                    cutoutIb.load(()=>{
+                        images.push(cutoutIb); 
+                        loadingOverlay.classList.add('hidden');
+                        recordHistory(); 
+                        selectItem('image', images.length - 1); 
+                        draw();
+                        showToast("已分離物件並填補背景");
+                    });
+                 });
+
              }, 50);
         }
 
-        function eraseSelection() { if (!selectionBox.active) return; const box={...selectionBox}; selectionBox.active = false; draw(); const bg = getDominantBorderColor(box.x, box.y, box.w, box.h); blocks.push(new ColorBlock(Math.floor(box.x), Math.floor(box.y), Math.floor(box.w), Math.floor(box.h), bg)); recordHistory(); selectItem('block', blocks.length - 1); draw(); }
-        function removeWatermarkSelection() { if(!img.src || !selectionBox.active) return; const box = {...selectionBox}; selectionBox.active=false; draw(); const patchSrc = generateInpaintPatch(box.x, box.y, box.w, box.h, img); const newIb = new PatchBlock(box.x, box.y, box.w, box.h, '#ffffff', patchSrc); newIb.load(()=>{ patches.push(newIb); recordHistory(); draw(); }); }
-        function startPickRemoveBg() { if(selectedIndex !== -1 && selectedType === 'image') { setTool('magic_wand'); showToast("請點擊圖片背景顏色進行去除"); } else { showToast("請先點選一張圖片", true); } }
+        function eraseSelection() {
+            if (!selectionBox.active) return;
+            const box={...selectionBox}; selectionBox.active = false; draw();
+            const bg = getDominantBorderColor(box.x, box.y, box.w, box.h); 
+            blocks.push(new ColorBlock(Math.floor(box.x), Math.floor(box.y), Math.floor(box.w), Math.floor(box.h), bg));
+            recordHistory(); selectItem('block', blocks.length - 1); draw();
+        }
+
+        function removeWatermarkSelection() {
+            if(!img.src || !selectionBox.active) return;
+            const box = {...selectionBox}; selectionBox.active=false; draw(); 
+            const patchSrc = generateInpaintPatch(box.x, box.y, box.w, box.h, img);
+            const newIb = new PatchBlock(box.x, box.y, box.w, box.h, '#ffffff', patchSrc); // Use PatchBlock for watermark removal
+            newIb.load(()=>{ patches.push(newIb); recordHistory(); draw(); });
+        }
+
+        function startPickRemoveBg() { 
+            if(selectedIndex !== -1 && selectedType === 'image') { 
+                setTool('magic_wand'); 
+                showToast("請點擊圖片背景顏色進行去除"); 
+            } else {
+                showToast("請先點選一張圖片", true);
+            }
+        }
+        
         function removeBgFromImage(clickX, clickY) {
             if(selectedIndex === -1 || selectedType !== 'image') return;
-            const ib=images[selectedIndex], w=ib.width*ib.scale, h=ib.height*ib.scale; if(clickX<ib.x||clickX>ib.x+w||clickY<ib.y||clickY>ib.y+h)return;
-            loadingOverlay.classList.remove('hidden'); setTimeout(()=>{
-                const tC = document.createElement('canvas'); tC.width = ib.width; tC.height = ib.height; const tX = tC.getContext('2d'); tX.drawImage(ib.imgElement, 0, 0);
-                const lx = Math.floor((clickX - ib.x) / ib.scale), ly = Math.floor((clickY - ib.y) / ib.scale); const idata = tX.getImageData(0, 0, tC.width, tC.height); const data = idata.data;
-                const idx0 = (ly * tC.width + lx) * 4, sR = data[idx0], sG = data[idx0+1], sB = data[idx0+2], sA = data[idx0+3];
+            const imgBlock = images[selectedIndex];
+            const w = imgBlock.width * imgBlock.scale, h = imgBlock.height * imgBlock.scale;
+            if(clickX < imgBlock.x || clickX > imgBlock.x + w || clickY < imgBlock.y || clickY > imgBlock.y + h) return;
+            loadingOverlay.classList.remove('hidden');
+            setTimeout(() => {
+                const tC = document.createElement('canvas'); tC.width = imgBlock.width; tC.height = imgBlock.height;
+                const tX = tC.getContext('2d'); tX.drawImage(imgBlock.imgElement, 0, 0);
+                const localX = Math.floor((clickX - imgBlock.x) / imgBlock.scale), localY = Math.floor((clickY - imgBlock.y) / imgBlock.scale);
+                const idata = tX.getImageData(0, 0, tC.width, tC.height); const data = idata.data;
+                const idx0 = (localY * tC.width + localX) * 4;
+                const sR = data[idx0], sG = data[idx0+1], sB = data[idx0+2], sA = data[idx0+3];
                 if(sA === 0) { loadingOverlay.classList.add('hidden'); return; }
-                const tolSq = (parseInt(document.getElementById('bgTolerance').value)||50)**2; const stack = [[lx, localY]]; const visited = new Uint8Array(tC.width * tC.height);
+
+                const tolSq = (parseInt(document.getElementById('bgTolerance').value)||50)**2;
+                const stack = [[localX, localY]]; const visited = new Uint8Array(tC.width * tC.height);
                 while(stack.length > 0) {
-                    const [x,y] = stack.pop(); const p = y*tC.width+x; if(visited[p]) continue; visited[p]=1; const i = p*4;
-                    if((data[i]-sR)**2 + (data[i+1]-sG)**2 + (data[i+2]-sB)**2 <= tolSq) {
-                        data[i+3] = 0; if(x>0) stack.push([x-1,y]); if(x<tC.width-1) stack.push([x+1,y]); if(y>0) stack.push([x,y-1]); if(y<tC.height-1) stack.push([x,y+1]);
+                    const [x,y] = stack.pop(); const p = y*tC.width+x;
+                    if(visited[p]) continue; visited[p]=1;
+                    const idx = p*4;
+                    const dist = (data[idx]-sR)**2 + (data[idx+1]-sG)**2 + (data[idx+2]-sB)**2;
+                    if(dist <= tolSq) {
+                        data[idx+3] = 0;
+                        if(x>0) stack.push([x-1,y]); if(x<tC.width-1) stack.push([x+1,y]);
+                        if(y>0) stack.push([x,y-1]); if(y<tC.height-1) stack.push([x,y+1]);
                     }
                 }
-                tX.putImageData(idata, 0, 0); ib.src = tC.toDataURL(); ib.load(() => { loadingOverlay.classList.add('hidden'); recordHistory(); draw(); });
+                tX.putImageData(idata, 0, 0);
+                imgBlock.src = tC.toDataURL();
+                imgBlock.load(() => { loadingOverlay.classList.add('hidden'); recordHistory(); draw(); });
             }, 50);
         }
 
@@ -711,14 +817,31 @@
                 maxY = Math.min(img.height, Math.ceil(maxY + padding));
                 const w=maxX-minX, h=maxY-minY;
                 if(w>0 && h>0) {
-                    const mC = document.createElement('canvas'); mC.width=w; mC.height=h; const mX = mC.getContext('2d'); mX.lineCap='round'; mX.strokeStyle='#fff'; 
+                    const mC = document.createElement('canvas'); mC.width=w; mC.height=h; const mX = mC.getContext('2d');
+                    mX.lineCap='round'; mX.strokeStyle='#fff'; 
                     maskStrokes.forEach(s=>{ mX.lineWidth=s.size; mX.beginPath(); if(s.points.length>0) mX.moveTo(s.points[0].x-minX, s.points[0].y-minY); for(let i=1;i<s.points.length;i++) mX.lineTo(s.points[i].x-minX, s.points[i].y-minY); mX.stroke(); });
-                    const pSrc = generateInpaintPatch(minX, minY, w, h, img); const newIb = new PatchBlock(minX, minY, w, h, '#ffffff', pSrc); 
-                    const tempImg = new Image(); tempImg.onload = () => {
+                    const pSrc = generateInpaintPatch(minX, minY, w, h, img);
+                    const newIb = new PatchBlock(minX, minY, w, h, '#ffffff', pSrc); // Use PatchBlock for mask removal result
+                    const tempImg = new Image();
+                    tempImg.onload = () => {
                         const finalC = document.createElement('canvas'); finalC.width=w; finalC.height=h; const fX = finalC.getContext('2d');
-                        fX.drawImage(tempImg, 0, 0); fX.globalCompositeOperation = 'destination-in'; fX.drawImage(mC, 0, 0); 
-                        newIb.src = finalC.toDataURL(); newIb.load(()=>{ patches.push(newIb); maskStrokes=[]; document.getElementById('applyMaskBtn').disabled=true; loadingOverlay.classList.add('hidden'); recordHistory(); draw(); setTool('select'); showToast("去除完成，已返回游標模式"); }); 
-                    }; tempImg.src=pSrc;
+                        fX.drawImage(tempImg, 0, 0); 
+                        fX.globalCompositeOperation = 'destination-in';
+                        fX.drawImage(mC, 0, 0); 
+                        newIb.src = finalC.toDataURL(); // Update src with masked version
+                        newIb.load(()=>{ 
+                            patches.push(newIb); 
+                            maskStrokes=[]; 
+                            document.getElementById('applyMaskBtn').disabled=true; 
+                            loadingOverlay.classList.add('hidden'); 
+                            recordHistory(); 
+                            draw();
+                            // NEW: Auto exit
+                            setTool('select');
+                            showToast("去除完成，已返回游標模式");
+                        }); 
+                    }; 
+                    tempImg.src=pSrc;
                 } else { loadingOverlay.classList.add('hidden'); }
             }, 50);
         }
@@ -727,24 +850,52 @@
         function getCanvasPos(e) { const r=canvasContainer.getBoundingClientRect(); return {x:(e.clientX-r.left-view.x)/view.scale, y:(e.clientY-r.top-view.y)/view.scale}; }
         function draw() {
             if(!img.complete||img.width===0)return; canvas.width=img.width; canvas.height=img.height; canvas.style.transform=`translate(${view.x}px,${view.y}px) scale(${view.scale})`; ctx.clearRect(0,0,canvas.width,canvas.height); ctx.drawImage(img,0,0);
-            patches.forEach(p=>{ if(p.imgElement && p.imgElement.complete) ctx.drawImage(p.imgElement, p.x, p.y, p.w, p.h); else { ctx.fillStyle=p.color;ctx.fillRect(p.x,p.y,p.w,p.h); } });
+            
+            // Draw Patches (now supports texture images)
+            patches.forEach(p=>{
+                if(p.imgElement && p.imgElement.complete) {
+                    ctx.drawImage(p.imgElement, p.x, p.y, p.w, p.h);
+                } else {
+                    ctx.fillStyle=p.color;ctx.fillRect(p.x,p.y,p.w,p.h);
+                }
+            });
+
             blocks.forEach((b,i)=>{ctx.fillStyle=b.color;ctx.fillRect(b.x,b.y,b.width,b.height); if(selectedType==='block'&&selectedIndex===i)drawSelection(b.x,b.y,b.width,b.height,Math.max(1,1/view.scale),true);});
             images.forEach((b,i)=>{if(b.imgElement){const w=b.width*b.scale,h=b.height*b.scale;ctx.drawImage(b.imgElement,b.x,b.y,w,h); if(selectedType==='image'&&selectedIndex===i)drawSelection(b.x,b.y,w,h,Math.max(1,1/view.scale),true);}});
             if(maskStrokes.length>0){ ctx.save(); ctx.lineCap='round'; ctx.lineJoin='round'; ctx.strokeStyle='rgba(255,0,0,0.5)'; maskStrokes.forEach(s=>{ ctx.lineWidth=s.size; ctx.beginPath(); if(s.points.length>0)ctx.moveTo(s.points[0].x,s.points[0].y); for(let i=1;i<s.points.length;i++)ctx.lineTo(s.points[i].x,s.points[i].y); ctx.stroke(); }); ctx.restore(); }
+            
             texts.forEach((b,i)=>{ 
-                ctx.font=`${b.fontWeight} ${b.fontSize}px ${b.fontFamily}`; if(b.letterSpacing) ctx.letterSpacing = b.letterSpacing + "px"; else ctx.letterSpacing = "0px";
-                ctx.textBaseline='top'; const lh=b.fontSize*b.lineHeight, lines=b.text.split('\n'); 
+                ctx.font=`${b.fontWeight} ${b.fontSize}px ${b.fontFamily}`; 
+                // Add letter spacing support
+                if(b.letterSpacing) ctx.letterSpacing = b.letterSpacing + "px";
+                else ctx.letterSpacing = "0px";
+
+                ctx.textBaseline='top'; 
+                const lh=b.fontSize*b.lineHeight, lines=b.text.split('\n'); 
+                // Removed the auto-height resizing line to allow box movement & stability
                 if(b.hasBackground){ctx.fillStyle=b.bgColor;ctx.fillRect(b.x,b.y,b.width,b.height);} 
                 if(selectedType==='text'&&selectedIndex===i)drawSelection(b.x,b.y,b.width,b.height,Math.max(1,1/view.scale),true); 
-                ctx.fillStyle=b.color; ctx.textAlign=b.textAlign; lines.forEach((l,ix)=>{let dx=b.x+b.padding; if(b.textAlign==='center')dx+=(b.width-b.padding*2)/2; else if(b.textAlign==='right')dx+=(b.width-b.padding*2); ctx.fillText(l,dx,b.y+b.padding+ix*lh);}); 
+                ctx.fillStyle=b.color; ctx.textAlign=b.textAlign; 
+                lines.forEach((l,ix)=>{let dx=b.x+b.padding; if(b.textAlign==='center')dx+=(b.width-b.padding*2)/2; else if(b.textAlign==='right')dx+=(b.width-b.padding*2); ctx.fillText(l,dx,b.y+b.padding+ix*lh);}); 
             });
+            // Reset global context state
             ctx.letterSpacing = "0px";
+            
             if(selectionBox.active){ ctx.save(); ctx.strokeStyle='#ef4444'; ctx.lineWidth=2*Math.max(1,1/view.scale); ctx.setLineDash([6,6]); ctx.strokeRect(selectionBox.x,selectionBox.y,selectionBox.w,selectionBox.h); ctx.restore(); }
         }
         function drawSelection(x,y,w,h,s,handle){ ctx.save(); ctx.strokeStyle='#2563eb'; ctx.lineWidth=2*s; ctx.strokeRect(x,y,w,h); if(handle){const hs=12*s; ctx.fillStyle='#10b981'; ctx.fillRect(x+w-hs/2,y+h-hs/2,hs,hs);} ctx.restore(); }
 
         canvasContainer.addEventListener('mousedown', e=>{ if(e.target===canvasContainer||e.target.closest('#placeholder')||currentTool==='hand'){isDraggingView=true; lastMouseX=e.clientX; lastMouseY=e.clientY; canvasContainer.style.cursor='grabbing';} });
-        canvasContainer.addEventListener('wheel', e=>{ e.preventDefault(); adjustZoom(e.deltaY>0?-0.1:0.1); }, {passive:false});
+        canvasContainer.addEventListener('wheel', e=>{ 
+            // 修正：只有按下 Ctrl 或 Cmd 鍵時才觸發縮放
+            if (e.ctrlKey || e.metaKey) {
+                e.preventDefault(); 
+                // 修正：縮放步進值調小為 0.02 (原 0.05)
+                const delta = e.deltaY > 0 ? -0.02 : 0.02;
+                adjustZoom(delta); 
+            }
+        }, {passive:false});
+        
         canvas.addEventListener('mousedown', e=>{
             if(currentTool==='hand')return; e.stopPropagation(); e.preventDefault(); const pos=getCanvasPos(e);
             if(currentTool==='mask'){ isDrawingMask=true; maskStrokes.push({points:[{x:pos.x,y:pos.y}], size:parseInt(document.getElementById('brushSize').value)||20}); draw(); return; }
@@ -753,30 +904,67 @@
             if(currentTool==='rect'){ isCreatingRect=true; newRectStart={x:Math.floor(pos.x),y:Math.floor(pos.y)}; blocks.push(new ColorBlock(newRectStart.x,newRectStart.y,0,0,'#e2e8f0')); selectItem('block',blocks.length-1); return; }
             
             const s=Math.max(1,1/view.scale), hs=20*s, tol=10*s;
+            // Check Hit - Reverse order
             let found = false;
             const chk=(l,t)=>{ 
                 if(found) return true;
                 for(let i=l.length-1;i>=0;i--){ 
                     const b=l[i], w=(b.width||20)*(b.scale||1), h=(b.height||20)*(b.scale||1); 
+                    // Resize Handle (Check corner)
                     if(selectedIndex===i && selectedType===t && pos.x>=b.x+w-hs && pos.x<=b.x+w+hs && pos.y>=b.y+h-hs && pos.y<=b.y+h+hs){ isResizingItem=true; resizeStart={x:pos.x,y:pos.y,w:w,h:h,fontSize:b.fontSize||0}; found=true; return true; } 
-                    if(pos.x>=b.x-tol && pos.x<=b.x+w+tol && pos.y>=b.y-tol && pos.y<=b.y+h+tol){ isDraggingItem=true; dragOffset={x:pos.x-b.x,y:pos.y-b.y}; selectItem(t,i); found=true; return true; } 
+                    // Move Body
+                    if(pos.x>=b.x-tol && pos.x<=b.x+w+tol && pos.y>=b.y-tol && pos.y<=b.y+h+tol){ 
+                        isDraggingItem=true; dragOffset={x:pos.x-b.x,y:pos.y-b.y}; selectItem(t,i); found=true; return true; 
+                    } 
                 } return false; 
             };
+            
             chk(texts,'text'); chk(images,'image'); chk(blocks,'block');
+            
             if(!found){ 
                 if(selectionBox.active && pos.x>=selectionBox.x && pos.x<=selectionBox.x+selectionBox.w && pos.y>=selectionBox.y && pos.y<=selectionBox.y+selectionBox.h){ isDraggingSelection=true; dragOffset={x:pos.x-selectionBox.x, y:pos.y-selectionBox.y}; }
                 else { deselectAll(); isSelecting=true; selectionStartX=pos.x; selectionStartY=pos.y; selectionBox={x:Math.floor(pos.x),y:Math.floor(pos.y),w:0,h:0,active:true}; }
-            } draw();
+            } 
+            draw();
         });
+        
+        // Updated mousemove for text box resizing
         window.addEventListener('mousemove', e=>{
             if(isDraggingView){ view.x+=e.clientX-lastMouseX; view.y+=e.clientY-lastMouseY; lastMouseX=e.clientX; lastMouseY=e.clientY; draw(); return; }
             const pos=getCanvasPos(e);
+            
+            // 修正：游標懸停提示
+            if (!isDraggingItem && !isCreatingRect && !isSelecting && currentTool === 'select') {
+                let hit = false;
+                const s = Math.max(1, 1/view.scale);
+                const tol = 10 * s;
+                // Reuse simplified hit check for cursor
+                const chkHit = (l) => {
+                    for(let i=l.length-1; i>=0; i--) {
+                        const b=l[i], w=(b.width||20)*(b.scale||1), h=(b.height||20)*(b.scale||1);
+                        if(pos.x>=b.x-tol && pos.x<=b.x+w+tol && pos.y>=b.y-tol && pos.y<=b.y+h+tol) return true;
+                    }
+                    return false;
+                };
+                if(chkHit(texts) || chkHit(images) || chkHit(blocks)) hit = true;
+                
+                canvas.style.cursor = hit ? 'move' : 'default';
+            }
+
             if(isDrawingMask&&currentTool==='mask'){ maskStrokes[maskStrokes.length-1].points.push({x:pos.x,y:pos.y}); draw(); return; }
             if(isCreatingRect){ const b=blocks[blocks.length-1]; b.width=Math.abs(pos.x-newRectStart.x); b.height=Math.abs(pos.y-newRectStart.y); b.x=Math.min(pos.x,newRectStart.x); b.y=Math.min(pos.y,newRectStart.y); draw(); }
             else if(isResizingItem){ 
                 if(selectedType==='block'){ blocks[selectedIndex].width=Math.max(10,pos.x-blocks[selectedIndex].x); blocks[selectedIndex].height=Math.max(10,pos.y-blocks[selectedIndex].y); } 
                 else if(selectedType==='image'){ images[selectedIndex].scale=Math.max(10,pos.x-images[selectedIndex].x)/images[selectedIndex].width; document.getElementById('imgScale').value=images[selectedIndex].scale; } 
-                else if(selectedType==='text'){ const b=texts[selectedIndex]; b.width = Math.max(20, pos.x - b.x); b.height = Math.max(20, pos.y - b.y); refitTextBlock(b); document.getElementById('fontSize').value=Math.floor(b.fontSize); } 
+                else if(selectedType==='text'){ 
+                    const b=texts[selectedIndex];
+                    // Update dimensions based on mouse pos
+                    b.width = Math.max(20, pos.x - b.x);
+                    b.height = Math.max(20, pos.y - b.y);
+                    // Recalculate font size to fit new box
+                    refitTextBlock(b);
+                    document.getElementById('fontSize').value=Math.floor(b.fontSize); 
+                } 
                 draw(); 
             }
             else if(isDraggingItem){ const l=selectedType==='text'?texts:(selectedType==='image'?images:blocks); l[selectedIndex].x=pos.x-dragOffset.x; l[selectedIndex].y=pos.y-dragOffset.y; draw(); }
@@ -786,12 +974,156 @@
         window.addEventListener('mouseup', ()=>{
             if(isDrawingMask){ isDrawingMask=false; document.getElementById('applyMaskBtn').disabled=maskStrokes.length===0; }
             if(isCreatingRect||isDraggingItem||isResizingItem){ if(isCreatingRect){isCreatingRect=false;setTool('select');} recordHistory(); isDraggingItem=false; isResizingItem=false; }
-            if(isDraggingView){ isDraggingView=false; canvasContainer.style.cursor='grab'; }
+            if(isDraggingView){ 
+                isDraggingView=false; 
+                // 修正：游標狀態復原
+                if(currentTool === 'hand') canvasContainer.style.cursor='grab';
+                else canvasContainer.style.cursor='default';
+            }
             if(isSelecting){ if(selectionBox.w<0){selectionBox.x+=selectionBox.w;selectionBox.w=Math.abs(selectionBox.w);} if(selectionBox.h<0){selectionBox.y+=selectionBox.h;selectionBox.h=Math.abs(selectionBox.h);} const h=selectionBox.active&&selectionBox.w>5&&selectionBox.h>5; document.getElementById('ocrBtn').disabled=!h; document.getElementById('magicBtn').disabled=!h; document.getElementById('watermarkBtn').disabled=!h; document.getElementById('eraseBtn').disabled=!h; }
             if(isDraggingSelection) isDraggingSelection=false; isSelecting=false; draw();
         });
 
-        // Event Bindings
+        // Common Tools
+        function clearMask() { maskStrokes = []; document.getElementById('applyMaskBtn').disabled = true; draw(); }
+        function addText() { 
+            ctx.font = "bold 30px 'Noto Sans TC'"; const txt = "文字"; const m = ctx.measureText(txt); 
+            // Fix: Create box with enough padding
+            const estHeight = 30 * 1.2 + 16; 
+            const estWidth = m.width + 16; 
+            texts.push(new TextBlock(canvas.width/2 - estWidth/2, canvas.height/2 - estHeight/2, txt, 30, estWidth, estHeight)); 
+            selectItem('text', texts.length-1); 
+            recordHistory(); 
+            draw(); 
+        }
+        function addQRCode() { const u=prompt("URL"); if(u){ const d=document.createElement('div'); new QRCode(d,{text:u}); setTimeout(()=>{const i=d.querySelector('img'); if(i){const b=new ImageBlock(canvas.width/2-64,canvas.height/2-64,i.src,0,0); b.load(()=>{images.push(b);recordHistory();draw();});}},100);} }
+        function deleteSelected(){ if(selectedIndex!==-1){ if(selectedType==='text')texts.splice(selectedIndex,1); else if(selectedType==='image')images.splice(selectedIndex,1); else blocks.splice(selectedIndex,1); deselectAll(); recordHistory(); draw(); } }
+        function activateEyedropper() { setTool(currentTool==='picker'?'select':'picker'); }
+        function pickColor(x,y) { const tc = document.createElement('canvas'); tc.width=1; tc.height=1; tc.getContext('2d').drawImage(img, x, y, 1, 1, 0, 0, 1, 1); const p = tc.getContext('2d').getImageData(0,0,1,1).data; const hex = "#" + ((1 << 24) + (p[0] << 16) + (p[1] << 8) + p[2]).toString(16).slice(1); if(selectedIndex!==-1) { if(selectedType==='text'){ texts[selectedIndex].bgColor=hex; texts[selectedIndex].hasBackground=true; } else if(selectedType==='block') blocks[selectedIndex].color=hex; updateInputs(); recordHistory(); } draw(); }
+        function setTool(t) { 
+            currentTool = t; 
+            document.querySelectorAll('.tool-btn').forEach(b => b.classList.remove('active')); 
+            if(t==='select') document.getElementById('toolSelect').classList.add('active'); 
+            if(t==='hand') document.getElementById('toolHand').classList.add('active'); 
+            if(t==='rect') document.getElementById('toolRect').classList.add('active'); 
+            // Removed incorrect ID reference
+            
+            if(t === 'mask') { 
+                document.getElementById('maskOptions').classList.remove('hidden'); 
+                document.getElementById('maskEnterPanel').classList.add('hidden'); 
+                document.getElementById('exitMaskBtn').classList.remove('hidden'); 
+            } else { 
+                document.getElementById('maskOptions').classList.add('hidden'); 
+                document.getElementById('maskEnterPanel').classList.remove('hidden'); 
+                document.getElementById('exitMaskBtn').classList.add('hidden'); 
+            } 
+            
+            canvas.classList.toggle('cursor-crosshair', t==='mask'); 
+            canvas.classList.toggle('cursor-magic', t==='magic_wand'); 
+            canvas.classList.toggle('cursor-dropper', t==='picker'); 
+            // 修正：確保游標狀態正確更新
+            canvasContainer.style.cursor = t==='hand'?'grab':(t==='rect'?'crosshair':'default'); 
+        }
+        function exitMaskMode() { setTool('select'); }
+        function updateInputs() { if(selectedIndex===-1) return; if(selectedType==='text'){ const b=texts[selectedIndex]; document.getElementById('textInput').value=b.text; document.getElementById('fontSize').value=b.fontSize; document.getElementById('textColor').value=b.color; document.getElementById('bgColor').value=b.bgColor; document.getElementById('hasBackground').checked=b.hasBackground; document.getElementById('fontWeight').value=b.fontWeight; document.getElementById('letterSpacing').value=b.letterSpacing||0; document.getElementById('lineHeight').value=b.lineHeight; } else if(selectedType==='image') document.getElementById('imgScale').value=images[selectedIndex].scale; else document.getElementById('blockColor').value=blocks[selectedIndex].color; }
+        function selectItem(t, i) { selectedType=t; selectedIndex=i; selectionBox.active=false; updateInputs(); ['textProperties','imageProperties','blockProperties'].forEach(k=>document.getElementById(k).classList.add('hidden')); if(t==='text')document.getElementById('textProperties').classList.remove('hidden'); if(t==='image')document.getElementById('imageProperties').classList.remove('hidden'); if(t==='block')document.getElementById('blockProperties').classList.remove('hidden'); document.getElementById('ocrBtn').disabled=true; document.getElementById('magicBtn').disabled=true; document.getElementById('watermarkBtn').disabled=true; document.getElementById('eraseBtn').disabled=true; }
+        function deselectAll() { selectedType=null; selectedIndex=-1; ['textProperties','imageProperties','blockProperties'].forEach(k=>document.getElementById(k).classList.add('hidden')); }
+        function adjustZoom(d) { view.scale = Math.max(0.1, Math.min(5, view.scale + d)); document.getElementById('zoomLevel').textContent = `${Math.round(view.scale*100)}%`; draw(); }
+        function resetView() { if(img.width===0)return; const r=Math.min(canvasContainer.clientWidth/img.width, canvasContainer.clientHeight/img.height); view={scale:r<1?r:1, x:(canvasContainer.clientWidth-img.width*(r<1?r:1))/2, y:(canvasContainer.clientHeight-img.height*(r<1?r:1))/2}; document.getElementById('zoomLevel').textContent=`${Math.round(view.scale*100)}%`; draw(); }
+        
+        async function downloadPDF() { 
+            if(slides.length===0)return; 
+            saveSlideState(); loadingOverlay.classList.remove('hidden'); loadingStatus.textContent="生成PDF..."; 
+            const doc = new jspdf.jsPDF({ orientation: 'landscape', unit: 'px', format: [slides[0].originalImage.width, slides[0].originalImage.height] }); 
+            for(let i=0; i<slides.length; i++) { 
+                if(i>0) doc.addPage([slides[i].originalImage.width, slides[i].originalImage.height]); 
+                const s=slides[i], tC=document.createElement('canvas'); tC.width=s.originalImage.width; tC.height=s.originalImage.height; const tx=tC.getContext('2d'); 
+                // Draw Slide
+                tx.drawImage(s.originalImage,0,0); 
+                (s.patches||[]).forEach(p=>{ if(p.imgElement && p.imgElement.complete) tx.drawImage(p.imgElement, p.x, p.y, p.w, p.h); else { tx.fillStyle=p.color; tx.fillRect(p.x,p.y,p.w,p.h); } }); 
+                (s.blocks||[]).forEach(b=>{tx.fillStyle=b.color; tx.fillRect(b.x,b.y,b.width,b.height)}); 
+                for(const imgD of (s.images||[])) { const ti=new Image(); ti.src=imgD.src; await new Promise(r=>ti.onload=r); tx.drawImage(ti,imgD.x,imgD.y,imgD.width*imgD.scale,imgD.height*imgD.scale); } 
+                (s.texts||[]).forEach(b=>{tx.font=`${b.fontWeight} ${b.fontSize}px ${b.fontFamily}`; if(b.letterSpacing) tx.letterSpacing = b.letterSpacing + "px"; else tx.letterSpacing = "0px"; tx.textBaseline='top'; const lh=b.fontSize*b.lineHeight, ls=b.text.split('\n'); if(b.hasBackground){tx.fillStyle=b.bgColor;tx.fillRect(b.x,b.y,b.width,ls.length*lh+b.padding*2);} tx.fillStyle=b.color; ls.forEach((l,ix)=>tx.fillText(l,b.x+b.padding,b.y+b.padding+ix*lh));}); 
+                doc.addImage(tC.toDataURL('image/jpeg',0.9),'JPEG',0,0,tC.width,tC.height); 
+            } 
+            doc.save(`edited_${Date.now()}.pdf`); loadingOverlay.classList.add('hidden'); 
+        }
+
+        async function downloadPPTX() {
+            if(slides.length === 0) return;
+            saveSlideState();
+            loadingOverlay.classList.remove('hidden');
+            loadingStatus.textContent = "生成 PPTX...";
+
+            try {
+                const pptx = new PptxGenJS();
+                // 像素到英吋的轉換 (假設 96 DPI)
+                const layoutW = slides[0].originalImage.width / 96;
+                const layoutH = slides[0].originalImage.height / 96;
+                pptx.defineLayout({ name: 'CUSTOM', width: layoutW, height: layoutH });
+                pptx.layout = 'CUSTOM';
+
+                for (let i = 0; i < slides.length; i++) {
+                    const slide = pptx.addSlide();
+                    
+                    // Render the full visual state to a canvas
+                    const s = slides[i];
+                    const tC = document.createElement('canvas');
+                    tC.width = s.originalImage.width;
+                    tC.height = s.originalImage.height;
+                    const tx = tC.getContext('2d');
+                    
+                    // 1. BG
+                    tx.drawImage(s.originalImage, 0, 0);
+                    
+                    // 2. Patches
+                    (s.patches||[]).forEach(p=>{
+                        if(p.imgElement && p.imgElement.complete) {
+                            tx.drawImage(p.imgElement, p.x, p.y, p.w, p.h);
+                        } else {
+                            tx.fillStyle=p.color; tx.fillRect(p.x,p.y,p.w,p.h);
+                        }
+                    });
+                    
+                    // 3. Blocks
+                    (s.blocks||[]).forEach(b=>{tx.fillStyle=b.color;tx.fillRect(b.x,b.y,b.width,b.height)});
+                    
+                    // 4. Images
+                    for(const im of (s.images||[])){
+                        const io=new Image(); io.src=im.src; 
+                        await new Promise(r=>io.onload=r); 
+                        tx.drawImage(io,im.x,im.y,im.width*im.scale,im.height*im.scale);
+                    }
+                    
+                    // 5. Texts
+                    (s.texts||[]).forEach(b=>{
+                        tx.font=`${b.fontWeight} ${b.fontSize}px ${b.fontFamily}`; 
+                        if(b.letterSpacing) tx.letterSpacing = b.letterSpacing + "px"; else tx.letterSpacing = "0px";
+                        tx.textBaseline='top'; 
+                        const lh=b.fontSize*b.lineHeight, ls=b.text.split('\n'); 
+                        if(b.hasBackground){tx.fillStyle=b.bgColor;tx.fillRect(b.x,b.y,b.width,b.height);} 
+                        tx.fillStyle=b.color; 
+                        ls.forEach((l,ix)=>tx.fillText(l,b.x+b.padding,b.y+b.padding+ix*lh));
+                    });
+
+                    // Add to PPT slide as a single high-quality image
+                    const dataUrl = tC.toDataURL('image/png');
+                    slide.addImage({ data: dataUrl, x: 0, y: 0, w: '100%', h: '100%' });
+                }
+
+                await pptx.writeFile({ fileName: `edited_slides_${Date.now()}.pptx` });
+                showToast("PPTX 下載成功");
+            } catch (e) {
+                console.error(e);
+                alert("PPTX 生成失敗: " + e.message);
+            } finally {
+                loadingOverlay.classList.add('hidden');
+            }
+        }
+
+        function downloadImage() { if(!img.src)return; const l=view; view={scale:1,x:0,y:0}; draw(); const a=document.createElement('a'); a.download=`slide_${Date.now()}.png`; a.href=canvas.toDataURL('image/png'); a.click(); view=l; draw(); }
+        
+        // Listeners for props
         document.getElementById('textInput').oninput=()=>{if(selectedIndex!==-1&&selectedType==='text'){texts[selectedIndex].text=document.getElementById('textInput').value; refitTextBlock(texts[selectedIndex]); draw();}};
         document.getElementById('fontSize').oninput=()=>{if(selectedIndex!==-1&&selectedType==='text'){texts[selectedIndex].fontSize=parseInt(document.getElementById('fontSize').value); draw();}};
         document.getElementById('textColor').oninput=()=>{if(selectedIndex!==-1&&selectedType==='text'){texts[selectedIndex].color=document.getElementById('textColor').value; draw();}};
