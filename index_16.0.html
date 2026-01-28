@@ -1,0 +1,1550 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>圖片文字修改專家 - v16.0 塗抹去印版</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src='https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js'></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;700&family=Noto+Serif+TC:wght@400;700&display=swap');
+        body { font-family: 'Noto Sans TC', sans-serif; user-select: none; }
+        
+        canvas { 
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1); 
+            transform-origin: 0 0; 
+        }
+        .pattern-grid {
+            background-image: radial-gradient(#cbd5e1 1px, transparent 1px);
+            background-size: 20px 20px;
+        }
+
+        .loader {
+            border: 4px solid #f3f3f3;
+            border-top: 4px solid #3498db;
+            border-radius: 50%;
+            width: 40px;
+            height: 40px;
+            animation: spin 1s linear infinite;
+        }
+        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+
+        aside::-webkit-scrollbar { width: 6px; }
+        aside::-webkit-scrollbar-track { background: #f1f1f1; }
+        aside::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 3px; }
+        aside::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
+        
+        .tool-btn.active { background-color: #2563eb; color: white; border-color: #2563eb; }
+
+        #toast {
+            visibility: hidden;
+            min-width: 250px;
+            background-color: #333;
+            color: #fff;
+            text-align: center;
+            border-radius: 8px;
+            padding: 12px 16px;
+            position: fixed;
+            z-index: 100;
+            left: 50%;
+            top: -60px; 
+            transform: translateX(-50%);
+            font-size: 14px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+            opacity: 0;
+            transition: opacity 0.3s, top 0.3s;
+        }
+        #toast.show { visibility: visible; opacity: 1; top: 20px; }
+        #toast.error { background-color: #ef4444; }
+
+        .cursor-grab { cursor: grab; }
+        .cursor-grabbing { cursor: grabbing; }
+        .cursor-crosshair { cursor: crosshair; }
+        .cursor-default { cursor: default; }
+        .cursor-move { cursor: move; }
+        
+        .cursor-dropper {
+            cursor: url("data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIyNCIgaGVpZ2h0PSIyNCIgdmlld0JveD0iMCAwIDI0IDI0IiBmaWxsPSJub25lIiBzdHJva2U9ImJsYWNrIiBzdHJva2Utd2lkdGg9IjIiIHN0cm9rZS1saW5lY2FwPSJyb3VuZCIgc3Ryb2tlLWxpbmVqb2luPSJyb3VuZCI+PHBhdGggZD0iTTE0LjUgMmEzLjUgMy41IDAgMCAxIDUgNWwtMi41IDIuNUw4LjUgMjBsLTQuNSAxbDEtNC41TDE0LjUgMnoiLz48bGluZSB4MT0iMyIgeTE9IjIxIiB4Mj0iOSIgeTI9IjE1Ii8+PC9zdmc+") 0 24, crosshair !important;
+        }
+        .cursor-magic {
+            cursor: url("data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIyNCIgaGVpZ2h0PSIyNCIgdmlld0JveD0iMCAwIDI0IDI0IiBmaWxsPSJub25lIiBzdHJva2U9IiM5MzMzZWEiIHN0cm9rZS13aWR0aD0iMiIgc3Ryb2tlLWxpbmVjYXA9InJvdW5kIiBzdHJva2UtbGluZWpvaW49InJvdW5kIj48cGF0aCBkPSJNMTQuNSAyYTMuNSAzLjUgMCAwIDEgNSA1bC0yLjUgMi41TDguNSAyMGwtNC41IDFsMS00LjVMMTQuNSAyeiIvPjxwYXRoIGQ9Ik0yMSAxMmwyIDItMiAyTTMgMTJsLTIgMiAyIDIiLz48L3N2Zz4=") 0 24, crosshair !important;
+        }
+    </style>
+</head>
+<body class="bg-gray-100 h-screen flex flex-col overflow-hidden">
+
+    <div id="loadingOverlay" class="fixed inset-0 bg-black bg-opacity-70 z-50 hidden flex flex-col items-center justify-center text-white">
+        <div class="loader mb-4"></div>
+        <h2 class="text-xl font-bold mb-2">AI 正在處理中...</h2>
+        <p id="loadingStatus" class="text-sm text-gray-200 font-mono">初始化...</p>
+    </div>
+
+    <div id="restoreModal" class="fixed inset-0 bg-black bg-opacity-50 z-50 hidden flex items-center justify-center">
+        <div class="bg-white rounded-lg p-6 w-96 shadow-2xl">
+            <h3 class="text-lg font-bold text-gray-800 mb-2"><i class="fas fa-history text-blue-500 mr-2"></i>發現未完成的編輯</h3>
+            <p class="text-sm text-gray-600 mb-6">是否載入上次的編輯內容？</p>
+            <div class="flex justify-end gap-3">
+                <button onclick="clearStorage(true)" class="px-4 py-2 text-gray-500 hover:text-gray-700 text-sm font-bold rounded hover:bg-gray-100">捨棄</button>
+                <button onclick="restoreData()" class="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 text-sm font-bold shadow">載入</button>
+            </div>
+        </div>
+    </div>
+
+    <div id="toast"><i class="fas fa-save mr-2 text-green-400"></i>已自動暫存編輯進度</div>
+
+    <header class="bg-white border-b border-gray-200 p-4 flex justify-between items-center z-10 shadow-sm shrink-0">
+        <div class="flex items-center gap-2">
+            <div class="bg-blue-600 text-white p-2 rounded-lg">
+                <i class="fas fa-pen-nib"></i>
+            </div>
+            <h1 class="text-xl font-bold text-gray-800 flex items-center gap-2">
+                圖型文字修改專家 
+                <span class="text-xs bg-red-600 text-white px-2 py-1 rounded font-mono">v16.0 Brush</span>
+            </h1>
+        </div>
+        <div class="flex gap-2">
+            <button onclick="undo()" class="bg-gray-100 hover:bg-gray-200 text-gray-700 px-3 py-2 rounded-lg transition" title="復原 (Ctrl+Z)">
+                <i class="fas fa-undo"></i>
+            </button>
+            <button onclick="redo()" class="bg-gray-100 hover:bg-gray-200 text-gray-700 px-3 py-2 rounded-lg transition" title="重做 (Ctrl+Y)">
+                <i class="fas fa-redo"></i>
+            </button>
+            <div class="w-px h-8 bg-gray-300 mx-1"></div>
+            <button id="saveBtn" onclick="manualSave()" class="bg-emerald-600 hover:bg-emerald-700 text-white px-4 py-2 rounded-lg shadow transition flex items-center gap-2" title="Cmd/Ctrl + S">
+                <i class="fas fa-save"></i> <span class="hidden sm:inline">暫存</span>
+            </button>
+            <button onclick="document.getElementById('fileInput').click()" class="bg-gray-100 hover:bg-gray-200 text-gray-700 px-4 py-2 rounded-lg transition flex items-center gap-2">
+                <i class="fas fa-upload"></i> <span class="hidden sm:inline">上傳</span>
+            </button>
+            <button onclick="downloadImage()" class="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg shadow transition flex items-center gap-2">
+                <i class="fas fa-download"></i> <span class="hidden sm:inline">匯出</span>
+            </button>
+            <input type="file" id="fileInput" accept="image/*" class="hidden">
+        </div>
+    </header>
+
+    <div class="flex flex-1 overflow-hidden relative">
+        
+        <aside class="w-80 bg-white border-r border-gray-200 flex flex-col p-4 gap-4 overflow-y-auto z-10 shadow-lg shrink-0">
+            <div class="bg-gray-50 p-2 rounded-lg border border-gray-200 grid grid-cols-6 gap-2">
+                <button onclick="setTool('select')" id="toolSelect" class="tool-btn active p-2 rounded hover:bg-white hover:shadow transition col-span-1" title="選取">
+                    <i class="fas fa-mouse-pointer"></i>
+                </button>
+                <button onclick="setTool('hand')" id="toolHand" class="tool-btn p-2 rounded hover:bg-white hover:shadow transition col-span-1" title="平移">
+                    <i class="fas fa-hand-paper"></i>
+                </button>
+                <button onclick="setTool('rect')" id="toolRect" class="tool-btn p-2 rounded hover:bg-white hover:shadow transition col-span-1" title="色塊">
+                    <i class="fas fa-vector-square"></i>
+                </button>
+                <button onclick="adjustZoom(-0.1)" class="p-2 rounded bg-white hover:bg-gray-100 shadow-sm transition col-span-1" title="縮小">
+                    <i class="fas fa-search-minus"></i>
+                </button>
+                <button onclick="adjustZoom(0.1)" class="p-2 rounded bg-white hover:bg-gray-100 shadow-sm transition col-span-1" title="放大">
+                    <i class="fas fa-search-plus"></i>
+                </button>
+                <button onclick="resetView()" class="p-2 rounded bg-white hover:bg-gray-100 shadow-sm transition col-span-1" title="原圖大小置中">
+                    <i class="fas fa-compress-arrows-alt"></i>
+                </button>
+                <div class="col-span-6 text-center text-xs text-gray-400 mt-1" id="zoomLevel">縮放: 100%</div>
+            </div>
+
+            <!-- Mask Brush Tool Section -->
+            <div class="bg-rose-50 p-3 rounded-lg border border-rose-200 space-y-2">
+                 <h3 class="text-xs font-bold text-rose-700 uppercase tracking-wider mb-2"><i class="fas fa-magic"></i> 塗抹去浮水印</h3>
+                 <button onclick="setTool('mask')" id="toolMask" class="w-full tool-btn bg-white border border-rose-200 hover:bg-rose-100 text-rose-900 py-2 rounded shadow-sm text-sm font-bold flex items-center justify-center gap-2">
+                     <i class="fas fa-paint-brush"></i> 塗抹去印工具
+                 </button>
+                 
+                 <div id="maskOptions" class="hidden text-xs text-rose-800 space-y-2 pt-2 border-t border-rose-200">
+                     <p><i class="fas fa-info-circle"></i> 塗抹紅色區域以標記浮水印</p>
+                     <div class="flex items-center justify-between">
+                         <span>筆刷大小: <span id="brushSizeVal">20</span>px</span>
+                         <input type="range" id="brushSize" min="5" max="100" value="20" class="w-20 h-2 bg-rose-200 rounded-lg appearance-none cursor-pointer">
+                     </div>
+                     <div class="flex gap-2 pt-1">
+                        <button onclick="clearMask()" class="flex-1 bg-white hover:bg-gray-100 text-gray-600 py-1 rounded border border-gray-300">清除塗抹</button>
+                        <button id="applyMaskBtn" onclick="applyMaskRemoval()" disabled class="flex-1 bg-rose-600 hover:bg-rose-700 text-white py-1 rounded shadow disabled:opacity-50 disabled:cursor-not-allowed">
+                            <i class="fas fa-check"></i> 執行去除
+                        </button>
+                     </div>
+                 </div>
+            </div>
+
+            <div id="controls" class="space-y-4 opacity-50 pointer-events-none transition-opacity duration-300 pb-8">
+                <div class="space-y-2">
+                    <label class="block text-xs font-bold text-gray-500 uppercase tracking-wider">選取區域動作</label>
+                    <div class="grid grid-cols-2 gap-2">
+                        <!-- AI/Advanced Features -->
+                        <button id="magicBtn" onclick="magicCrop()" disabled class="col-span-1 bg-gradient-to-r from-purple-600 to-blue-600 hover:from-purple-700 hover:to-blue-700 text-white py-3 rounded-lg font-bold transition flex flex-col justify-center items-center gap-1 shadow-sm text-[10px] cursor-pointer">
+                            <i class="fas fa-cut text-base"></i> <span>智能去背</span>
+                        </button>
+                        <button id="watermarkBtn" onclick="removeWatermarkSelection()" disabled class="col-span-1 bg-gradient-to-r from-cyan-500 to-blue-500 hover:from-cyan-600 hover:to-blue-600 text-white py-3 rounded-lg font-bold transition flex flex-col justify-center items-center gap-1 shadow-sm text-[10px] cursor-pointer">
+                            <i class="fas fa-square text-base"></i> <span>選框填補</span>
+                        </button>
+
+                        <!-- Basic Features -->
+                        <button id="ocrBtn" onclick="runOCR()" disabled class="col-span-1 bg-gray-300 text-white py-2 rounded-lg font-bold transition flex flex-col justify-center items-center gap-1 shadow-sm text-[10px] cursor-not-allowed">
+                            <i class="fas fa-font text-base"></i> <span>辨識文字</span>
+                        </button>
+                        <button id="eraseBtn" onclick="eraseSelection()" disabled class="col-span-1 bg-gray-300 text-white py-2 rounded-lg font-bold transition flex flex-col justify-center items-center gap-1 shadow-sm text-[10px] cursor-not-allowed">
+                            <i class="fas fa-eraser text-base"></i> <span>圈選消除</span>
+                        </button>
+                    </div>
+                </div>
+                
+                <div class="flex gap-2 border-t pt-4">
+                     <button onclick="addText()" class="flex-1 bg-white border-2 border-dashed border-gray-300 hover:border-indigo-500 hover:text-indigo-600 text-gray-500 py-2 rounded-lg font-bold transition flex justify-center items-center gap-2 text-sm">
+                        <i class="fas fa-font"></i> 加文字
+                    </button>
+                    <button onclick="addQRCode()" class="flex-1 bg-white border-2 border-dashed border-gray-300 hover:border-green-500 hover:text-green-600 text-gray-500 py-2 rounded-lg font-bold transition flex justify-center items-center gap-2 text-sm">
+                        <i class="fas fa-qrcode"></i> QR Code
+                    </button>
+                </div>
+
+                <div class="border-t pt-4">
+                    <div class="flex justify-between items-center mb-3">
+                        <h3 class="text-sm font-bold text-gray-500 uppercase tracking-wider">物件屬性</h3>
+                        <div class="flex gap-1">
+                            <button onclick="clearPatches()" class="text-gray-400 hover:text-gray-600 text-xs px-2" title="清除所有塗層"><i class="fas fa-undo"></i> 塗層</button>
+                            <button onclick="deleteSelected()" class="text-red-500 hover:text-red-700 text-xs font-bold px-2 py-1 rounded hover:bg-red-50 transition"><i class="fas fa-trash"></i> 刪除</button>
+                        </div>
+                    </div>
+                    
+                    <div id="textProperties" class="space-y-4 hidden">
+                        <div class="bg-blue-50 p-2 rounded text-xs text-blue-700 mb-2 border border-blue-100">
+                            <i class="fas fa-info-circle"></i> <span id="textPropHint">拖曳文字框右下角可直接縮放</span>
+                        </div>
+                        <textarea id="textInput" rows="3" class="w-full border border-gray-300 rounded p-2 text-sm" placeholder="文字內容..."></textarea>
+                        
+                        <div>
+                            <label class="block text-xs font-bold text-gray-700 mb-1">對齊</label>
+                            <div class="flex bg-gray-100 p-1 rounded-lg">
+                                <button onclick="setTextAlign('left')" id="alignLeft" class="flex-1 py-1 rounded hover:bg-white transition text-gray-600"><i class="fas fa-align-left"></i></button>
+                                <button onclick="setTextAlign('center')" id="alignCenter" class="flex-1 py-1 rounded hover:bg-white transition text-gray-600"><i class="fas fa-align-center"></i></button>
+                                <button onclick="setTextAlign('right')" id="alignRight" class="flex-1 py-1 rounded hover:bg-white transition text-gray-600"><i class="fas fa-align-right"></i></button>
+                            </div>
+                        </div>
+
+                        <div class="grid grid-cols-2 gap-2">
+                            <div><label class="block text-xs font-bold text-gray-700">字型</label><select id="fontFamily" class="w-full border rounded text-sm p-1"><option value="'Noto Sans TC', sans-serif">黑體</option><option value="'Noto Serif TC', serif">明體</option><option value="Arial, sans-serif">Arial</option></select></div>
+                            <div><label class="block text-xs font-bold text-gray-700">字重</label><select id="fontWeight" class="w-full border rounded text-sm p-1"><option value="normal">一般</option><option value="bold">粗體</option></select></div>
+                        </div>
+
+                        <div class="grid grid-cols-2 gap-2">
+                            <div><label class="block text-xs font-bold text-gray-700">大小</label><input type="number" id="fontSize" class="w-full border rounded p-1 text-sm"></div>
+                            <div><label class="block text-xs font-bold text-gray-700">顏色</label><div class="flex items-center gap-1 border rounded p-1 bg-white"><input type="color" id="textColor" class="w-5 h-5 cursor-pointer"><span id="textColorHex" class="text-xs text-gray-500"></span></div></div>
+                        </div>
+                        
+                        <div>
+                            <label class="block text-xs font-bold text-gray-700">背景色</label>
+                            <div class="flex items-center gap-1 border rounded p-1 bg-white">
+                                <input type="checkbox" id="hasBackground" class="accent-blue-600 mr-1">
+                                <input type="color" id="bgColor" class="w-5 h-5 cursor-pointer">
+                                <span id="bgColorHex" class="text-xs text-gray-500 ml-1"></span>
+                                <button onclick="activateEyedropper()" id="eyedropperBtn" class="ml-auto text-xs p-1 hover:bg-gray-100 rounded text-gray-500"><i class="fas fa-eye-dropper"></i></button>
+                            </div>
+                        </div>
+
+                        <div class="grid grid-cols-2 gap-2">
+                            <div><label class="block text-xs font-bold text-gray-700">行高</label><input type="range" id="lineHeight" min="1" max="3" step="0.1" class="w-full h-2"></div>
+                            <div><label class="block text-xs font-bold text-gray-700">字距</label><input type="range" id="letterSpacing" min="0" max="20" class="w-full h-2"></div>
+                        </div>
+                        <div><label class="block text-xs font-bold text-gray-700">內距</label><input type="range" id="padding" min="0" max="50" class="w-full h-2"></div>
+                    </div>
+                    
+                    <div id="imageProperties" class="space-y-4 hidden">
+                         <div class="bg-purple-50 p-2 rounded text-xs text-purple-700 mb-2 border border-purple-100">
+                            <i class="fas fa-magic"></i> 若去背不乾淨，請點擊「吸色去背」並點選圖片背景
+                         </div>
+                         <button onclick="startPickRemoveBg()" id="pickRemoveBgBtn" class="w-full bg-purple-600 hover:bg-purple-700 text-white py-2 rounded font-bold text-sm mb-2 transition">
+                             <i class="fas fa-eye-dropper"></i> 吸色去背
+                         </button>
+                         <div>
+                            <label class="block text-xs font-bold text-gray-700 mb-1">容許值 (Tolerance)</label>
+                            <input type="range" id="bgTolerance" min="1" max="150" value="50" class="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer">
+                            <div class="text-right text-xs text-gray-500" id="bgToleranceVal">50</div>
+                         </div>
+
+                         <div class="border-t pt-2 mt-2">
+                             <label class="block text-xs font-bold text-gray-700 mb-1">縮放比例</label>
+                             <input type="range" id="imgScale" min="0.1" max="5" step="0.1" class="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer">
+                         </div>
+                    </div>
+
+                    <div id="blockProperties" class="space-y-4 hidden">
+                        <div>
+                            <label class="block text-xs font-bold text-gray-700 mb-1">色塊顏色</label>
+                             <div class="flex items-center gap-1 border border-gray-300 rounded p-1 bg-white">
+                                <input type="color" id="blockColor" class="w-5 h-5 cursor-pointer border border-gray-200">
+                                <span id="blockColorHex" class="text-xs text-gray-500 ml-1"></span>
+                                <button onclick="activateEyedropper()" id="eyedropperBlockBtn" class="ml-auto text-xs p-1 hover:bg-gray-100 rounded text-gray-500"><i class="fas fa-eye-dropper"></i></button>
+                            </div>
+                        </div>
+                   </div>
+                </div>
+                
+                <button onclick="clearStorage(true)" class="w-full text-xs text-gray-400 hover:text-red-500 underline text-center mt-2">
+                    清除暫存並重置
+                </button>
+            </div>
+        </aside>
+
+        <main class="flex-1 bg-gray-100 pattern-grid relative overflow-hidden" id="canvasContainer">
+            <div id="placeholder" class="flex flex-col h-full justify-center items-center text-center text-gray-400 pointer-events-none select-none">
+                <i class="fas fa-image text-6xl mb-4"></i>
+                <p class="text-lg">請上傳圖片以開始編輯</p>
+                <p class="text-sm mt-2 text-gray-300">支援塗抹去印、智慧填補、OCR 文字辨識</p>
+            </div>
+            <!-- Canvas: Absolute positioning to fix coordinate issues -->
+            <canvas id="canvas" class="hidden shadow-2xl bg-white absolute top-0 left-0 origin-top-left"></canvas>
+            <div id="qrCodeTemp" class="hidden"></div>
+        </main>
+    </div>
+
+    <script>
+        // Init
+        const canvas = document.getElementById('canvas');
+        const ctx = canvas.getContext('2d');
+        const fileInput = document.getElementById('fileInput');
+        const controls = document.getElementById('controls');
+        const placeholder = document.getElementById('placeholder');
+        const loadingOverlay = document.getElementById('loadingOverlay');
+        const loadingStatus = document.getElementById('loadingStatus');
+        const restoreModal = document.getElementById('restoreModal');
+        const toast = document.getElementById('toast');
+        const canvasContainer = document.getElementById('canvasContainer');
+        const saveBtn = document.getElementById('saveBtn');
+        
+        const ocrBtn = document.getElementById('ocrBtn');
+        const eraseBtn = document.getElementById('eraseBtn');
+        const magicBtn = document.getElementById('magicBtn'); 
+        const watermarkBtn = document.getElementById('watermarkBtn');
+        const eyedropperBtn = document.getElementById('eyedropperBtn');
+        const eyedropperBlockBtn = document.getElementById('eyedropperBlockBtn');
+        const pickRemoveBgBtn = document.getElementById('pickRemoveBgBtn');
+        const zoomLevelDisplay = document.getElementById('zoomLevel');
+        
+        const textProperties = document.getElementById('textProperties');
+        const imageProperties = document.getElementById('imageProperties');
+        const blockProperties = document.getElementById('blockProperties');
+        const maskOptions = document.getElementById('maskOptions');
+        const applyMaskBtn = document.getElementById('applyMaskBtn');
+        const textPropHint = document.getElementById('textPropHint');
+
+        const textInput = document.getElementById('textInput');
+        const fontSizeInput = document.getElementById('fontSize');
+        const textColorInput = document.getElementById('textColor');
+        const bgColorInput = document.getElementById('bgColor');
+        const hasBackgroundInput = document.getElementById('hasBackground');
+        const fontWeightInput = document.getElementById('fontWeight');
+        const paddingInput = document.getElementById('padding');
+        const textColorHex = document.getElementById('textColorHex');
+        const bgColorHex = document.getElementById('bgColorHex');
+        const blockColorHex = document.getElementById('blockColorHex');
+        const lineHeightInput = document.getElementById('lineHeight');
+        const letterSpacingInput = document.getElementById('letterSpacing');
+        const fontFamilyInput = document.getElementById('fontFamily');
+        const imgScaleInput = document.getElementById('imgScale');
+        const bgToleranceInput = document.getElementById('bgTolerance');
+        const bgToleranceVal = document.getElementById('bgToleranceVal');
+        const blockColorInput = document.getElementById('blockColor');
+        const brushSizeInput = document.getElementById('brushSize');
+        const brushSizeVal = document.getElementById('brushSizeVal');
+
+        const alignBtns = { left: document.getElementById('alignLeft'), center: document.getElementById('alignCenter'), right: document.getElementById('alignRight') };
+
+        // State
+        let img = new Image();
+        let isSessionActive = false;
+        
+        let texts = []; 
+        let patches = []; 
+        let blocks = []; 
+        let images = []; 
+        
+        let selectedIndex = -1; 
+        let selectedType = null; 
+
+        let view = { scale: 1, x: 0, y: 0 };
+        let isDraggingView = false, lastMouseX = 0, lastMouseY = 0;
+        
+        let currentTool = 'select'; 
+        let isSelecting = false, selectionBox = { x: 0, y: 0, w: 0, h: 0, active: false };
+        let selectionStartX = 0, selectionStartY = 0; 
+        let isCreatingRect = false, newRectStart = { x: 0, y: 0 };
+        let isDraggingItem = false, isResizingItem = false, dragOffset = { x: 0, y: 0 }, resizeStart = { w:0, h:0, x:0, y:0, fontSize:0 }; 
+        let isDraggingSelection = false; 
+        
+        // Masking / Inpainting State
+        let maskStrokes = []; // Array of { points: [{x,y}], size: num }
+        let isDrawingMask = false;
+
+        // Remove BG State
+        let isRemovingBg = false;
+
+        let autoSaveInterval = null;
+        const MAX_HISTORY = 20;
+        let historyStack = [];
+        let historyPointer = -1;
+
+        class TextBlock {
+            constructor(x, y, text, fontSize = 30, w = 0, h = 0, autoFit = false) {
+                this.x = Math.floor(x || 0); this.y = Math.floor(y || 0); 
+                this.text = text; this.fontSize = fontSize;
+                this.fontFamily = "'Noto Sans TC', sans-serif"; this.fontWeight = 'bold';
+                this.color = '#000000'; this.hasBackground = false; this.bgColor = '#ffffff';
+                this.padding = 4; this.textAlign = 'left'; this.lineHeight = 1.2;
+                this.letterSpacing = 0; 
+                this.width = Math.floor(w || 0); this.height = Math.floor(h || 0); 
+                this.autoFit = autoFit;
+            }
+        }
+        class PatchBlock { constructor(x, y, w, h, color) { this.x=x; this.y=y; this.w=w; this.h=h; this.color=color; } }
+        class ColorBlock { constructor(x, y, w, h, color) { this.x=x; this.y=y; this.width=w; this.height=h; this.color=color; } }
+        class ImageBlock {
+            constructor(x, y, imgSrc, w, h) { this.x=x; this.y=y; this.src=imgSrc; this.imgElement=null; this.scale=1; this.width=w; this.height=h; }
+            load(cb) {
+                this.imgElement = new Image();
+                this.imgElement.onload = () => {
+                    if(!this.width) this.width = this.imgElement.width;
+                    if(!this.height) this.height = this.imgElement.height;
+                    if(cb) cb();
+                }
+                this.imgElement.onerror = () => { if(cb) cb(); }; 
+                this.imgElement.src = this.src;
+            }
+        }
+
+        // --- Undo/Redo ---
+        function recordHistory() {
+            if (historyPointer < historyStack.length - 1) {
+                historyStack = historyStack.slice(0, historyPointer + 1);
+            }
+            const state = JSON.stringify({
+                texts, patches, blocks,
+                images: images.map(i => ({ x: i.x, y: i.y, src: i.src, scale: i.scale, width: i.width, height: i.height }))
+            });
+            historyStack.push(state);
+            if (historyStack.length > MAX_HISTORY) historyStack.shift();
+            else historyPointer++;
+        }
+
+        function undo() {
+            if (historyPointer > 0) {
+                historyPointer--;
+                loadHistoryState(historyStack[historyPointer]);
+            }
+        }
+
+        function redo() {
+            if (historyPointer < historyStack.length - 1) {
+                historyPointer++;
+                loadHistoryState(historyStack[historyPointer]);
+            }
+        }
+        
+        function loadHistoryState(jsonStr) {
+            const state = JSON.parse(jsonStr);
+            texts = state.texts.map(t => Object.assign(new TextBlock(), t));
+            patches = state.patches.map(p => Object.assign(new PatchBlock(), p));
+            blocks = state.blocks.map(b => Object.assign(new ColorBlock(), b));
+            
+            const newImages = [];
+            let loadedCount = 0;
+            if(state.images.length === 0) {
+                images = [];
+                draw();
+                saveToDB(true);
+            } else {
+                state.images.forEach(idata => {
+                    const newIb = new ImageBlock(idata.x, idata.y, idata.src, idata.width, idata.height);
+                    newIb.scale = idata.scale;
+                    newIb.load(() => {
+                        loadedCount++;
+                        if(loadedCount === state.images.length) {
+                            images = newImages; 
+                            draw();
+                            saveToDB(true);
+                        }
+                    });
+                    newImages.push(newIb);
+                });
+            }
+            deselectAll();
+            draw();
+            saveToDB(true);
+        }
+
+        window.addEventListener('keydown', (e) => {
+            if (e.ctrlKey || e.metaKey) {
+                if (e.key === 'z') { e.preventDefault(); if (e.shiftKey) redo(); else undo(); }
+                else if (e.key === 'y') { e.preventDefault(); redo(); }
+                else if (e.key === 's') { e.preventDefault(); manualSave(); }
+            }
+            if (e.key === 'Escape') {
+                if(isRemovingBg) {
+                    isRemovingBg = false;
+                    setTool('select');
+                    pickRemoveBgBtn.classList.remove('bg-red-600', 'hover:bg-red-700');
+                    pickRemoveBgBtn.classList.add('bg-purple-600', 'hover:bg-purple-700');
+                    pickRemoveBgBtn.innerHTML = '<i class="fas fa-eye-dropper"></i> 吸色去背';
+                }
+                if(currentTool === 'mask') {
+                    setTool('select');
+                }
+            }
+        });
+
+        // --- IndexedDB ---
+        const DB_NAME = 'ImageTextEditorDB_v15';
+        const STORE_NAME = 'sessions';
+        function openDB() {
+            return new Promise((resolve, reject) => {
+                const req = indexedDB.open(DB_NAME, 1);
+                req.onupgradeneeded = e => { const db=e.target.result; if(!db.objectStoreNames.contains(STORE_NAME)) db.createObjectStore(STORE_NAME); };
+                req.onsuccess = e => resolve(e.target.result);
+                req.onerror = e => reject(e.target.error);
+            });
+        }
+        async function saveStateToDB(state) {
+            const db = await openDB();
+            return new Promise((resolve, reject) => {
+                const tx = db.transaction(STORE_NAME, 'readwrite');
+                tx.objectStore(STORE_NAME).put(state, 'latest');
+                tx.oncomplete = () => resolve();
+                tx.onerror = e => reject(e.target.error);
+            });
+        }
+        async function loadStateFromDB() {
+            try {
+                const db = await openDB();
+                return new Promise((resolve) => {
+                    const req = db.transaction(STORE_NAME, 'readonly').objectStore(STORE_NAME).get('latest');
+                    req.onsuccess = e => resolve(e.target.result);
+                    req.onerror = () => resolve(null);
+                });
+            } catch { return null; }
+        }
+        async function clearStateFromDB() {
+            try { const db = await openDB(); db.transaction(STORE_NAME, 'readwrite').objectStore(STORE_NAME).delete('latest'); } catch {}
+        }
+
+        // --- Lifecycle ---
+        window.addEventListener('load', async () => {
+            const saved = await loadStateFromDB();
+            if (saved && saved.imgSrc) restoreModal.classList.remove('hidden');
+            startAutoSave();
+        });
+
+        function startAutoSave() {
+            if (autoSaveInterval) clearInterval(autoSaveInterval);
+            autoSaveInterval = setInterval(() => {
+                if (isSessionActive && img.src && img.complete && img.naturalWidth !== 0) saveToDB(true);
+            }, 20000);
+        }
+
+        function showToast(msg, isError = false) {
+            toast.innerHTML = isError ? `<i class="fas fa-exclamation-triangle mr-2"></i> ${msg}` : `<i class="fas fa-save mr-2 text-green-400"></i> ${msg}`;
+            toast.className = isError ? "show error" : "show";
+            setTimeout(() => { toast.className = ""; }, 3000);
+        }
+
+        function manualSave() { if(isSessionActive) saveToDB(false); else showToast("請先載入圖片", true); }
+
+        async function saveToDB(silent = false) {
+            if (!img.src || !isSessionActive) return;
+            if (!silent) saveBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i>';
+            try {
+                const state = {
+                    imgSrc: img.src,
+                    texts, patches, blocks,
+                    images: images.map(i => ({ x: i.x, y: i.y, src: i.src, scale: i.scale, width: i.width, height: i.height })),
+                    date: Date.now()
+                };
+                await saveStateToDB(state);
+                if (!silent) { showToast("已手動儲存進度"); saveBtn.innerHTML = '<i class="fas fa-save"></i> 暫存進度'; }
+                else showToast("已自動暫存編輯進度");
+            } catch { if(!silent) saveBtn.innerHTML = '<i class="fas fa-exclamation"></i>'; }
+        }
+
+        async function clearStorage(reload = false) {
+            await clearStateFromDB();
+            restoreModal.classList.add('hidden');
+            if(reload) resetCanvas(true);
+        }
+
+        async function restoreData() {
+            const state = await loadStateFromDB();
+            if (!state || !state.imgSrc) return;
+            loadingOverlay.classList.remove('hidden');
+            loadingStatus.textContent = "還原中...";
+            const tempImg = new Image();
+            tempImg.onload = () => {
+                img = tempImg;
+                isSessionActive = true;
+                resetCanvas(false);
+                texts = (state.texts||[]).map(t => Object.assign(new TextBlock(), t));
+                patches = (state.patches||[]).map(p => Object.assign(new PatchBlock(), p));
+                blocks = (state.blocks||[]).map(b => {
+                     if(b.w!==undefined && b.width===undefined) b.width = b.w;
+                     if(b.h!==undefined && b.height===undefined) b.height = b.h;
+                     return Object.assign(new ColorBlock(), b);
+                });
+                images = [];
+                const savedImgs = state.images || [];
+                if(savedImgs.length === 0) finishRestore();
+                else {
+                    let loaded = 0;
+                    savedImgs.forEach(idata => {
+                        const ib = new ImageBlock(idata.x, idata.y, idata.src, idata.width, idata.height);
+                        ib.scale = idata.scale;
+                        ib.load(() => { loaded++; if(loaded===savedImgs.length) finishRestore(); });
+                        images.push(ib);
+                    });
+                }
+            };
+            tempImg.onerror = () => { clearStorage(true); finishRestore(); alert("圖片載入失敗"); };
+            tempImg.src = state.imgSrc;
+        }
+
+        function finishRestore() {
+            restoreModal.classList.add('hidden');
+            loadingOverlay.classList.add('hidden');
+            placeholder.classList.add('hidden');
+            canvas.classList.remove('hidden');
+            controls.classList.remove('opacity-50', 'pointer-events-none');
+            recordHistory();
+            draw();
+        }
+
+        fileInput.addEventListener('change', function(e) {
+            if (e.target.files && e.target.files[0]) {
+                const reader = new FileReader();
+                reader.onload = function(event) {
+                    img = new Image();
+                    img.onload = function() {
+                        isSessionActive = true;
+                        try {
+                            resetCanvas(true);
+                            saveToDB(true);
+                        } catch(e) {
+                            console.error(e);
+                            alert("初始化畫布失敗，請重試");
+                        }
+                    }
+                    img.onerror = function() {
+                        alert("圖片載入發生錯誤");
+                    }
+                    img.src = event.target.result;
+                }
+                reader.readAsDataURL(e.target.files[0]);
+            }
+        });
+
+        function resetCanvas(clearData = true) {
+            const container = document.getElementById('canvasContainer');
+            const ratio = Math.min(container.clientWidth / img.width, container.clientHeight / img.height);
+            view = { scale: ratio < 1 ? ratio : 1, x: 0, y: 0 };
+            view.x = (container.clientWidth - img.width * view.scale) / 2;
+            view.y = (container.clientHeight - img.height * view.scale) / 2;
+            canvas.width = img.width; canvas.height = img.height;
+            if (clearData) { 
+                texts=[]; patches=[]; images=[]; blocks=[]; maskStrokes=[]; selectedIndex=-1; selectedType=null; selectionBox.active=false; 
+                historyStack = []; historyPointer = -1;
+                recordHistory();
+            }
+            updateZoomDisplay();
+            placeholder.classList.add('hidden');
+            canvas.classList.remove('hidden');
+            controls.classList.remove('opacity-50', 'pointer-events-none');
+            draw();
+        }
+        
+        function resetView() {
+            const container = document.getElementById('canvasContainer');
+            const ratio = Math.min(container.clientWidth / img.width, container.clientHeight / img.height);
+            view = { scale: ratio < 1 ? ratio : 1, x: 0, y: 0 };
+            view.x = (container.clientWidth - img.width * view.scale) / 2;
+            view.y = (container.clientHeight - img.height * view.scale) / 2;
+            updateZoomDisplay();
+            draw();
+        }
+
+        // --- Helper ---
+        function wrapText(ctx, text, maxWidth) {
+            const lines = [];
+            text.split('\n').forEach(para => {
+                let line = '';
+                for (let char of para) {
+                    if (ctx.measureText(line + char).width < maxWidth) line += char;
+                    else { lines.push(line); line = char; }
+                }
+                lines.push(line);
+            });
+            return lines;
+        }
+
+        function refitTextBlock(b) {
+            if(!b.autoFit) return;
+            const targetW = b.width - b.padding*2;
+            const targetH = b.height - b.padding*2;
+            if(targetW<=0 || targetH<=0) return;
+            const dCtx = document.createElement('canvas').getContext('2d');
+            let low=5, high=300, best=12;
+            while(low<=high) {
+                const mid = Math.floor((low+high)/2);
+                dCtx.font = `${b.fontWeight} ${mid}px ${b.fontFamily}`;
+                if(dCtx.letterSpacing) dCtx.letterSpacing = `${b.letterSpacing}px`;
+                const lines = wrapText(dCtx, b.text, targetW);
+                const h = lines.length * (mid*b.lineHeight);
+                if(h <= targetH) { best=mid; low=mid+1; } else high=mid-1;
+            }
+            b.fontSize = best;
+        }
+
+        // --- Drawing ---
+        function draw() {
+            if (!img.complete || img.naturalWidth === 0) return; 
+            
+            canvas.style.transform = `translate(${view.x}px, ${view.y}px) scale(${view.scale})`;
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            ctx.drawImage(img, 0, 0);
+            const uiScale = Math.max(1, 1/view.scale);
+
+            // Draw Images and Patches
+            patches.forEach(p => { ctx.fillStyle=p.color; ctx.fillRect(p.x, p.y, p.w, p.h); });
+            blocks.forEach((b, i) => {
+                ctx.fillStyle=b.color; ctx.fillRect(b.x, b.y, b.width, b.height);
+                if(selectedType==='block' && selectedIndex===i) drawSelection(b.x, b.y, b.width, b.height, uiScale, true);
+            });
+            images.forEach((b, i) => {
+                if(!b.imgElement) return;
+                const w=b.width*b.scale, h=b.height*b.scale;
+                ctx.drawImage(b.imgElement, b.x, b.y, w, h);
+                if(selectedType==='image' && selectedIndex===i) drawSelection(b.x, b.y, w, h, uiScale, true);
+            });
+
+            // Draw Mask Strokes (Red Transparent)
+            if(maskStrokes.length > 0) {
+                ctx.save();
+                ctx.lineCap = 'round';
+                ctx.lineJoin = 'round';
+                ctx.strokeStyle = 'rgba(255, 0, 0, 0.5)'; // Transparent Red
+                
+                maskStrokes.forEach(stroke => {
+                    if(stroke.points.length < 2) return;
+                    ctx.lineWidth = stroke.size;
+                    ctx.beginPath();
+                    ctx.moveTo(stroke.points[0].x, stroke.points[0].y);
+                    for(let i=1; i<stroke.points.length; i++){
+                        ctx.lineTo(stroke.points[i].x, stroke.points[i].y);
+                    }
+                    ctx.stroke();
+                });
+                ctx.restore();
+            }
+
+            // Draw Text
+            texts.forEach((b, i) => {
+                ctx.font = `${b.fontWeight} ${b.fontSize}px ${b.fontFamily}`;
+                ctx.textBaseline = 'top';
+                if(ctx.letterSpacing) ctx.letterSpacing = `${b.letterSpacing}px`;
+                let lines, maxW=0;
+                if(b.autoFit) lines = wrapText(ctx, b.text, b.width-b.padding*2);
+                else { lines = b.text.split('\n'); lines.forEach(l=>{ const m=ctx.measureText(l); if(m.width>maxW)maxW=m.width; }); }
+                
+                const lh = b.fontSize*b.lineHeight;
+                const h = lines.length*lh;
+                
+                if(!b.autoFit) { 
+                    b.width = maxW+b.padding*2; 
+                    b.height = h+b.padding*2; 
+                } else {
+                    b.height = h + b.padding*2; 
+                }
+                
+                if(b.hasBackground) { ctx.fillStyle=b.bgColor; ctx.fillRect(b.x, b.y, b.width, b.height); }
+                if(selectedType==='text' && selectedIndex===i) drawSelection(b.x, b.y, b.width, b.height, uiScale, true);
+                
+                ctx.fillStyle=b.color; ctx.textAlign=b.textAlign;
+                lines.forEach((l, idx) => {
+                    let dx = b.x+b.padding, dy = b.y+b.padding + idx*lh;
+                    if(b.textAlign==='center') dx += (b.width-b.padding*2)/2;
+                    else if(b.textAlign==='right') dx += (b.width-b.padding*2);
+                    ctx.fillText(l, dx, dy);
+                });
+            });
+
+            if(selectionBox.active) {
+                ctx.save();
+                ctx.strokeStyle = '#ef4444'; ctx.lineWidth = 2*uiScale;
+                ctx.setLineDash([6*uiScale, 6*uiScale]);
+                ctx.strokeRect(selectionBox.x, selectionBox.y, selectionBox.w, selectionBox.h);
+                ctx.fillStyle = 'rgba(239, 68, 68, 0.2)'; 
+                ctx.fillRect(selectionBox.x, selectionBox.y, selectionBox.w, selectionBox.h);
+                ctx.restore();
+            }
+        }
+
+        function drawSelection(x, y, w, h, scale, handle) {
+            ctx.save();
+            ctx.strokeStyle = '#2563eb'; ctx.lineWidth = 2*scale;
+            ctx.strokeRect(x, y, w, h);
+            if(handle) {
+                const hs = 12*scale;
+                ctx.fillStyle = '#10b981';
+                ctx.fillRect(x + w - hs/2, y + h - hs/2, hs, hs);
+            }
+            ctx.restore();
+        }
+
+        // --- Interaction ---
+        function getCanvasPos(e) {
+            const rect = canvasContainer.getBoundingClientRect();
+            return { x: (e.clientX - rect.left - view.x) / view.scale, y: (e.clientY - rect.top - view.y) / view.scale };
+        }
+
+        canvasContainer.addEventListener('wheel', e => { e.preventDefault(); adjustZoom(e.deltaY>0?-0.1:0.1); }, { passive: false });
+
+        canvasContainer.addEventListener('mousedown', e => {
+            if(e.target===canvasContainer || e.target.closest('#placeholder') || currentTool==='hand') {
+                isDraggingView = true; lastMouseX = e.clientX; lastMouseY = e.clientY;
+                canvasContainer.style.cursor='grabbing';
+            }
+        });
+
+        canvas.addEventListener('mousedown', e => {
+            if(currentTool==='hand') return;
+            e.stopPropagation();
+            e.preventDefault(); 
+            const pos = getCanvasPos(e);
+            
+            // Mask Brush Logic
+            if(currentTool === 'mask') {
+                isDrawingMask = true;
+                const bs = parseInt(brushSizeInput.value) || 20;
+                maskStrokes.push({ points: [{x: pos.x, y: pos.y}], size: bs });
+                draw();
+                return;
+            }
+
+            if(currentTool==='picker') { pickColor(pos.x, pos.y); setTool('select'); return; }
+            if(currentTool==='rect') {
+                isCreatingRect=true; newRectStart={x:Math.floor(pos.x), y:Math.floor(pos.y)};
+                blocks.push(new ColorBlock(Math.floor(pos.x), Math.floor(pos.y), 0, 0, '#e2e8f0'));
+                selectItem('block', blocks.length-1); return;
+            }
+
+            // ... Existing tool logic ...
+            if(isRemovingBg && selectedType === 'image' && selectedIndex !== -1) {
+                const b = images[selectedIndex];
+                const localX = (pos.x - b.x) / b.scale;
+                const localY = (pos.y - b.y) / b.scale;
+                if(localX >= 0 && localX <= b.width && localY >= 0 && localY <= b.height) {
+                    const tCanvas = document.createElement('canvas');
+                    tCanvas.width = b.width; tCanvas.height = b.height;
+                    const tCtx = tCanvas.getContext('2d');
+                    tCtx.drawImage(b.imgElement, 0, 0);
+                    const p = tCtx.getImageData(Math.floor(localX), Math.floor(localY), 1, 1).data;
+                    const tolerance = parseInt(bgToleranceInput.value) || 50; 
+                    const targetColor = [p[0], p[1], p[2]]; 
+                    removeColorFromImage(b, targetColor, tolerance); 
+                }
+                return;
+            }
+
+            const scale = Math.max(1, 1/view.scale);
+            const hs = 20*scale;
+            const hitTol = 10*scale; 
+            
+            let hit = false; 
+
+            if(selectedIndex!==-1) {
+                let b;
+                if(selectedType==='text') b=texts[selectedIndex];
+                else if(selectedType==='image') b=images[selectedIndex];
+                else if(selectedType==='block') b=blocks[selectedIndex];
+                
+                let w = b.width * (b.scale||1), h = b.height * (b.scale||1);
+                if(pos.x >= b.x+w-hs && pos.x <= b.x+w+hs && pos.y >= b.y+h-hs && pos.y <= b.y+h+hs) {
+                    isResizingItem = true;
+                    resizeStart = { x:pos.x, y:pos.y, w:w, h:h, fontSize: b.fontSize||0 };
+                    return;
+                }
+            }
+
+            for(let i=texts.length-1; i>=0; i--) if(hitTest(texts[i], pos, hitTol)) { 
+                isDraggingItem = true;
+                let b = texts[i];
+                dragOffset = { x:pos.x-b.x, y:pos.y-b.y };
+                selectItem('text', i); 
+                hit=true; 
+                break; 
+            }
+            if(!hit) for(let i=images.length-1; i>=0; i--) if(hitTest(images[i], pos, hitTol)) { 
+                isDraggingItem = true;
+                let b = images[i];
+                dragOffset = { x:pos.x-b.x, y:pos.y-b.y };
+                selectItem('image', i); 
+                hit=true; 
+                break; 
+            }
+            if(!hit) for(let i=blocks.length-1; i>=0; i--) if(hitTest(blocks[i], pos, hitTol)) { 
+                isDraggingItem = true;
+                let b = blocks[i];
+                dragOffset = { x:pos.x-b.x, y:pos.y-b.y };
+                selectItem('block', i); 
+                hit=true; 
+                break; 
+            }
+            
+            if(!hit) {
+                if(selectionBox.active && 
+                   pos.x >= selectionBox.x && pos.x <= selectionBox.x + selectionBox.w &&
+                   pos.y >= selectionBox.y && pos.y <= selectionBox.y + selectionBox.h) {
+                    isDraggingSelection = true;
+                    dragOffset = { x: pos.x - selectionBox.x, y: pos.y - selectionBox.y };
+                } else {
+                    deselectAll();
+                    isSelecting=true; 
+                    selectionStartX=pos.x; selectionStartY=pos.y; 
+                    selectionBox={x:Math.floor(pos.x), y:Math.floor(pos.y), w:0, h:0, active:true};
+                    canvas.classList.add('cursor-crosshair');
+                }
+            }
+            draw();
+        });
+
+        function hitTest(b, pos, tol) {
+            const w = (b.width || 20) * (b.scale||1);
+            const h = (b.height || 20) * (b.scale||1);
+            const t = tol || 0; 
+            return pos.x>=b.x-t && pos.x<=b.x+w+t && pos.y>=b.y-t && pos.y<=b.y+h+t;
+        }
+
+        window.addEventListener('mousemove', e => {
+            if(isDraggingView) {
+                view.x += e.clientX - lastMouseX; view.y += e.clientY - lastMouseY;
+                lastMouseX = e.clientX; lastMouseY = e.clientY; draw();
+            } else {
+                const pos = getCanvasPos(e); 
+                
+                // Mask Drawing Logic
+                if(isDrawingMask && currentTool === 'mask') {
+                    const currentStroke = maskStrokes[maskStrokes.length - 1];
+                    currentStroke.points.push({x: pos.x, y: pos.y});
+                    draw();
+                }
+
+                // ... Mouse Move Logic ...
+                let hoverHit = false;
+                const scale = Math.max(1, 1/view.scale);
+                const hitTol = 10*scale;
+                
+                if (!isSelecting && !isDraggingSelection && !isDraggingItem && !isResizingItem && !isCreatingRect && currentTool === 'select' && !isRemovingBg) {
+                     for(let i=texts.length-1; i>=0; i--) if(hitTest(texts[i], pos, hitTol)) { hoverHit=true; break; }
+                     if(!hoverHit) for(let i=images.length-1; i>=0; i--) if(hitTest(images[i], pos, hitTol)) { hoverHit=true; break; }
+                     if(!hoverHit) for(let i=blocks.length-1; i>=0; i--) if(hitTest(blocks[i], pos, hitTol)) { hoverHit=true; break; }
+                     
+                     if(hoverHit) canvas.style.cursor = 'move';
+                     else if (selectionBox.active && pos.x >= selectionBox.x && pos.x <= selectionBox.x + selectionBox.w &&
+                        pos.y >= selectionBox.y && pos.y <= selectionBox.y + selectionBox.h) {
+                         canvas.style.cursor = 'move';
+                     } else {
+                         canvas.style.cursor = 'default';
+                     }
+                }
+
+                if(isCreatingRect) {
+                    const b = blocks[blocks.length-1];
+                    b.width = Math.abs(pos.x - newRectStart.x); b.height = Math.abs(pos.y - newRectStart.y);
+                    b.x = Math.min(pos.x, newRectStart.x); b.y = Math.min(pos.y, newRectStart.y);
+                    draw();
+                } else if(isResizingItem) {
+                    if(selectedType==='block') { blocks[selectedIndex].width = Math.max(10, pos.x - blocks[selectedIndex].x); blocks[selectedIndex].height = Math.max(10, pos.y - blocks[selectedIndex].y); }
+                    else if(selectedType==='image') { 
+                        const dist = Math.max(10, pos.x - images[selectedIndex].x);
+                        images[selectedIndex].scale = dist / images[selectedIndex].width;
+                        imgScaleInput.value = images[selectedIndex].scale;
+                    } else if(selectedType==='text') {
+                        const b = texts[selectedIndex];
+                        if(b.autoFit) {
+                            b.width = Math.max(20, pos.x - b.x); b.height = Math.max(20, pos.y - b.y);
+                            refitTextBlock(b);
+                        } else {
+                            const dy = pos.y - resizeStart.y;
+                            b.fontSize = Math.max(10, resizeStart.fontSize + dy/2);
+                            fontSizeInput.value = Math.floor(b.fontSize);
+                        }
+                    }
+                    updateInputs(); draw();
+                } else if(isDraggingItem) {
+                    let list = selectedType==='text'?texts : selectedType==='image'?images : blocks;
+                    if(selectedType==='text') list=texts; 
+                    
+                    list[selectedIndex].x = pos.x - dragOffset.x;
+                    list[selectedIndex].y = pos.y - dragOffset.y;
+                    draw();
+                } else if (isDraggingSelection) {
+                    selectionBox.x = pos.x - dragOffset.x;
+                    selectionBox.y = pos.y - dragOffset.y;
+                    draw();
+                } else if(isSelecting) {
+                    selectionBox.w = Math.abs(pos.x - selectionStartX);
+                    selectionBox.h = Math.abs(pos.y - selectionStartY);
+                    selectionBox.x = Math.min(pos.x, selectionStartX);
+                    selectionBox.y = Math.min(pos.y, selectionStartY);
+                    draw(); 
+                }
+            }
+        });
+
+        window.addEventListener('mouseup', () => {
+            if(isDrawingMask) {
+                isDrawingMask = false;
+                applyMaskBtn.disabled = maskStrokes.length === 0;
+            }
+            if(isCreatingRect) { isCreatingRect=false; setTool('select'); recordHistory(); saveToDB(true); }
+            if(isDraggingView) { isDraggingView=false; canvasContainer.style.cursor='grab'; }
+            if(isSelecting) {
+                if(selectionBox.w < 0) { selectionBox.x += selectionBox.w; selectionBox.w = Math.abs(selectionBox.w); }
+                if(selectionBox.h < 0) { selectionBox.y += selectionBox.h; selectionBox.h = Math.abs(selectionBox.h); }
+                updateSelectionBtns();
+                canvas.classList.remove('cursor-crosshair'); 
+            }
+            if(isDraggingSelection) isDraggingSelection = false;
+            if(isDraggingItem||isResizingItem) { recordHistory(); saveToDB(true); }
+            isDraggingItem=false; isResizingItem=false; isSelecting=false; draw();
+        });
+
+        // --- Helper Tools ---
+        function setTool(t) {
+            currentTool = t;
+            document.querySelectorAll('.tool-btn').forEach(b => b.classList.remove('active'));
+            if(t==='select') document.getElementById('toolSelect').classList.add('active');
+            if(t==='hand') document.getElementById('toolHand').classList.add('active');
+            if(t==='rect') document.getElementById('toolRect').classList.add('active');
+            if(t==='mask') document.getElementById('toolMask').classList.add('active');
+            
+            maskOptions.classList.add('hidden');
+            if(t==='mask') {
+                maskOptions.classList.remove('hidden');
+                canvas.classList.add('cursor-crosshair');
+            } else if (t === 'picker') {
+                eyedropperBtn.classList.add('text-blue-600', 'bg-blue-100');
+                canvas.classList.add('cursor-dropper'); 
+            } else {
+                eyedropperBtn.classList.remove('text-blue-600', 'bg-blue-100');
+                canvas.classList.remove('cursor-dropper');
+                canvas.classList.remove('cursor-crosshair');
+                canvasContainer.style.cursor = t==='hand'?'grab':(t==='rect'?'crosshair':'default');
+                canvas.style.cursor = t==='hand'?'grab':(t==='rect'?'crosshair':'default');
+            }
+            
+            if(isRemovingBg) {
+                isRemovingBg = false;
+                pickRemoveBgBtn.classList.remove('bg-red-600', 'hover:bg-red-700');
+                pickRemoveBgBtn.classList.add('bg-purple-600', 'hover:bg-purple-700');
+                pickRemoveBgBtn.innerHTML = '<i class="fas fa-eye-dropper"></i> 吸色去背';
+            }
+            // setTool(t==='select'?'select':t); // Recursion bug fixed
+        }
+        function adjustZoom(d) { view.scale = Math.max(0.1, Math.min(5, view.scale + d)); updateZoomDisplay(); draw(); }
+        function updateZoomDisplay() { zoomLevelDisplay.textContent = `縮放: ${Math.round(view.scale*100)}%`; }
+        function activateEyedropper() { setTool(currentTool==='picker'?'select':'picker'); }
+
+        function updateSelectionBtns() {
+            const has = selectionBox.active && selectionBox.w>5 && selectionBox.h>5;
+            ocrBtn.disabled = !has; eraseBtn.disabled = !has; magicBtn.disabled = !has; watermarkBtn.disabled = !has;
+            const act = "bg-indigo-600 hover:bg-indigo-700 text-white py-2 rounded-lg font-bold transition flex flex-col justify-center items-center gap-1 shadow-sm text-[10px] cursor-pointer";
+            const dis = "bg-gray-300 text-white py-2 rounded-lg font-bold transition flex flex-col justify-center items-center gap-1 shadow-sm text-[10px] cursor-not-allowed";
+            ocrBtn.className = has ? act : dis;
+            magicBtn.className = has ? act.replace('indigo','blue') : dis;
+            eraseBtn.className = has ? act.replace('indigo','red') : dis;
+            watermarkBtn.className = has ? act.replace('indigo','cyan') : dis;
+        }
+        
+        function clearMask() {
+            maskStrokes = [];
+            applyMaskBtn.disabled = true;
+            draw();
+        }
+
+        async function runOCR() {
+            if(!img.src) return;
+            const tCanvas = document.createElement('canvas'); const tCtx = tCanvas.getContext('2d');
+            tCanvas.width = Math.floor(selectionBox.w); tCanvas.height = Math.floor(selectionBox.h);
+            
+            tCtx.drawImage(img, selectionBox.x, selectionBox.y, selectionBox.w, selectionBox.h, 0, 0, selectionBox.w, selectionBox.h);
+            const idata = tCtx.getImageData(0,0,selectionBox.w,selectionBox.h);
+            const d = idata.data; let r=0,g=0,b=0,c=0;
+            for(let i=0;i<d.length;i+=40){r+=d[i];g+=d[i+1];b+=d[i+2];c++;}
+            if((r+g+b)/(c*3)<128){ for(let i=0;i<d.length;i+=4){d[i]=255-d[i];d[i+1]=255-d[i+1];d[i+2]=255-d[i+2];} tCtx.putImageData(idata,0,0); }
+
+            const box = {...selectionBox}; selectionBox.active=false; draw();
+            loadingOverlay.classList.remove('hidden');
+
+            try {
+                // Use standard lang string format
+                const worker = await Tesseract.createWorker('chi_tra+eng', 1, {
+                    logger: m => { if(m.status.includes('recognizing')) loadingStatus.textContent = `AI... ${(m.progress * 100).toFixed(0)}%`; }
+                });
+                const ret = await worker.recognize(tCanvas.toDataURL());
+                
+                // Terminate worker safely
+                await worker.terminate();
+
+                let txt = ret.data.text.replace(/\s+/g,'').replace(/\n/g,'');
+                if(txt.length > 0) {
+                    const bg = getDominantBorderColor(box.x, box.y, box.w, box.h); 
+                    patches.push(new PatchBlock(box.x, box.y, box.w, box.h, bg));
+                    
+                    // Fixed Integer Dimensions & MIN SIZE
+                    const safeW = Math.max(20, Math.floor(box.w));
+                    const safeH = Math.max(20, Math.floor(box.h));
+                    
+                    const nb = new TextBlock(Math.floor(box.x), Math.floor(box.y), txt, 20, safeW, safeH, true);
+                    refitTextBlock(nb);
+                    texts.push(nb);
+                    
+                    // Critical Fix: Select the new item immediately AND Change tool
+                    selectItem('text', texts.length - 1);
+                    setTool('select');
+                    
+                    // Force update
+                    recordHistory(); 
+                    saveToDB(true); 
+                    draw();
+                }
+                loadingOverlay.classList.add('hidden');
+            } catch (e) { 
+                console.error(e);
+                loadingOverlay.classList.add('hidden'); 
+                alert("辨識失敗: " + (e.message || "未知錯誤")); 
+            }
+        }
+
+        // Magic Crop with Flood Fill
+        function magicCrop() {
+            if(!img.src || !selectionBox.active) return;
+            const box = {...selectionBox}; selectionBox.active=false;
+            draw(); 
+            
+            const w = Math.floor(box.w);
+            const h = Math.floor(box.h);
+            
+            const tCanvas = document.createElement('canvas'); const tCtx = tCanvas.getContext('2d');
+            tCanvas.width = w; tCanvas.height = h;
+            
+            // Draw cropped area from image
+            tCtx.drawImage(img, box.x, box.y, box.w, box.h, 0, 0, w, h);
+            const idata = tCtx.getImageData(0,0,w,h);
+            const d = idata.data;
+            
+            const bgHex = getDominantBorderColor(box.x, box.y, box.w, box.h);
+
+            const colorCounts = {};
+            let maxCount = 0;
+            let bestKey = null;
+
+            const processPixel = (i) => {
+                if(i >= d.length) return;
+                const r = d[i], g = d[i+1], b = d[i+2];
+                // Quantize step 5
+                const step = 5;
+                const key = `${Math.floor(r/step)},${Math.floor(g/step)},${Math.floor(b/step)}`;
+                if(!colorCounts[key]) colorCounts[key] = { count: 0, rSum:0, gSum:0, bSum:0 };
+                colorCounts[key].count++;
+                colorCounts[key].rSum += r; colorCounts[key].gSum += g; colorCounts[key].bSum += b;
+                if(colorCounts[key].count > maxCount) { maxCount = colorCounts[key].count; bestKey = key; }
+            };
+
+            // Scan border pixels
+            for(let x=0; x<w; x++) { processPixel(x*4); processPixel(((h-1)*w + x)*4); }
+            for(let y=1; y<h-1; y++) { processPixel((y*w)*4); processPixel((y*w + w - 1)*4); }
+
+            let rRef=255, gRef=255, bRef=255;
+            if(bestKey) {
+                const best = colorCounts[bestKey];
+                rRef = Math.round(best.rSum / best.count);
+                gRef = Math.round(best.gSum / best.count);
+                bRef = Math.round(best.bSum / best.count);
+            }
+
+            const stack = [];
+            const visited = new Uint8Array(w * h);
+            const tolerance = parseInt(bgToleranceInput.value) || 50; 
+            const tolSq = tolerance * tolerance;
+            
+            const match = (i) => {
+                if(i >= d.length) return false;
+                const r = d[i], g = d[i+1], b = d[i+2];
+                return ((r-rRef)**2 + (g-gRef)**2 + (b-bRef)**2) <= tolSq;
+            };
+
+            for(let x=0; x<w; x++) {
+                if(match(x*4)) stack.push(x, 0); 
+                if(match(((h-1)*w + x)*4)) stack.push(x, h-1); 
+            }
+            for(let y=1; y<h-1; y++) {
+                if(match((y*w)*4)) stack.push(0, y); 
+                if(match((y*w + w-1)*4)) stack.push(w-1, y); 
+            }
+            
+            while(stack.length) {
+                const y = stack.pop(); const x = stack.pop(); const idx = y*w + x;
+                if(visited[idx]) continue; visited[idx] = 1;
+                const pid = idx * 4; d[pid+3] = 0; // Transparent
+                const neighbors = [[x+1, y], [x-1, y], [x, y+1], [x, y-1]];
+                for(let n of neighbors) {
+                    const nx = n[0], ny = n[1];
+                    if(nx>=0 && nx<w && ny>=0 && ny<h && !visited[ny*w + nx] && match((ny*w+nx)*4)) stack.push(nx, ny);
+                }
+            }
+            
+            tCtx.putImageData(idata, 0, 0);
+            
+            patches.push(new PatchBlock(box.x, box.y, box.w, box.h, bgHex));
+            
+            const newIb = new ImageBlock(box.x+20, box.y+20, tCanvas.toDataURL(), box.w, box.h);
+            newIb.load(()=>{ 
+                images.push(newIb); 
+                recordHistory(); saveToDB(true); 
+                selectItem('image', images.length - 1); 
+                draw(); 
+            });
+        }
+        
+        // --- Watermark Removal Logic (Mask Based) ---
+        function applyMaskRemoval() {
+            if(maskStrokes.length === 0 || !img.src) return;
+            
+            loadingOverlay.classList.remove('hidden');
+            loadingStatus.textContent = "AI 智慧填補中...";
+
+            // 1. Calculate Bounding Box of Mask
+            let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+            maskStrokes.forEach(s => {
+                s.points.forEach(p => {
+                    minX = Math.min(minX, p.x - s.size);
+                    minY = Math.min(minY, p.y - s.size);
+                    maxX = Math.max(maxX, p.x + s.size);
+                    maxY = Math.max(maxY, p.y + s.size);
+                });
+            });
+            
+            // Constrain to image bounds
+            minX = Math.max(0, Math.floor(minX));
+            minY = Math.max(0, Math.floor(minY));
+            maxX = Math.min(img.width, Math.ceil(maxX));
+            maxY = Math.min(img.height, Math.ceil(maxY));
+            
+            const w = maxX - minX;
+            const h = maxY - minY;
+            
+            if(w <= 0 || h <= 0) {
+                 loadingOverlay.classList.add('hidden');
+                 return;
+            }
+
+            // 2. Create Mask Canvas (White on Transparent) for Clipping
+            const maskCanvas = document.createElement('canvas');
+            maskCanvas.width = w; maskCanvas.height = h;
+            const mCtx = maskCanvas.getContext('2d');
+            
+            mCtx.lineCap = 'round';
+            mCtx.lineJoin = 'round';
+            mCtx.fillStyle = '#000'; // Clear
+            mCtx.strokeStyle = '#fff';
+            
+            // Draw strokes translated to local coordinates
+            maskStrokes.forEach(s => {
+                if(s.points.length < 1) return;
+                mCtx.lineWidth = s.size; // No blur on mask edge for crisp cut, or add blur?
+                // Adding blur helps blending
+                mCtx.shadowBlur = 10;
+                mCtx.shadowColor = 'white'; 
+
+                mCtx.beginPath();
+                mCtx.moveTo(s.points[0].x - minX, s.points[0].y - minY);
+                for(let i=1; i<s.points.length; i++) {
+                    mCtx.lineTo(s.points[i].x - minX, s.points[i].y - minY);
+                }
+                mCtx.stroke();
+            });
+
+            // 3. Create "Healed" Patch
+            const healedCanvas = document.createElement('canvas');
+            healedCanvas.width = w; healedCanvas.height = h;
+            const hCtx = healedCanvas.getContext('2d');
+            
+            // Draw original image part to start
+            hCtx.drawImage(img, minX, minY, w, h, 0, 0, w, h);
+            
+            // Patch Synthesis (Simplified Random Patch Match)
+            const patchSize = Math.max(5, Math.min(w, h) / 10);
+            
+            // We want to fill the 'White' areas of maskCanvas with content from outside
+            // For simplicity in this demo, we tile random border patches over the WHOLE area
+            // and then Mask it.
+            
+            const fillCanvas = document.createElement('canvas');
+            fillCanvas.width = w; fillCanvas.height = h;
+            const fCtx = fillCanvas.getContext('2d');
+            
+            // Collect source patches from immediate outside border of the bounding box
+            const sourcePatches = [];
+             // Top & Bottom
+            for(let x=0; x<w; x+=patchSize) {
+                 sourcePatches.push({ sx: minX + x, sy: minY - patchSize, sw: patchSize, sh: patchSize }); 
+                 sourcePatches.push({ sx: minX + x, sy: maxY, sw: patchSize, sh: patchSize });
+            }
+             // Left & Right
+            for(let y=0; y<h; y+=patchSize) {
+                 sourcePatches.push({ sx: minX - patchSize, sy: minY + y, sw: patchSize, sh: patchSize });
+                 sourcePatches.push({ sx: maxX, sy: minY + y, sw: patchSize, sh: patchSize });
+            }
+            
+            // If no border patches (e.g. edge of image), fallback to internal random
+            if(sourcePatches.length === 0) {
+                 sourcePatches.push({ sx: 0, sy: 0, sw: patchSize, sh: patchSize });
+            }
+
+            // Fill
+            for(let x=0; x<w; x+=patchSize) {
+                for(let y=0; y<h; y+=patchSize) {
+                    // Pick a random valid source patch
+                    // Ensure patch is within image bounds
+                    let p = sourcePatches[Math.floor(Math.random()*sourcePatches.length)];
+                    let safeSx = Math.max(0, Math.min(img.width - patchSize, p.sx));
+                    let safeSy = Math.max(0, Math.min(img.height - patchSize, p.sy));
+                    
+                    fCtx.drawImage(img, safeSx, safeSy, patchSize, patchSize, x, y, patchSize, patchSize);
+                }
+            }
+            
+            // Apply slight blur to the fill to blend tiles
+            const blurCanvas = document.createElement('canvas');
+            blurCanvas.width = Math.max(1, w/4); blurCanvas.height = Math.max(1, h/4);
+            const bCtx = blurCanvas.getContext('2d');
+            bCtx.drawImage(fillCanvas, 0, 0, blurCanvas.width, blurCanvas.height);
+            fCtx.drawImage(blurCanvas, 0, 0, w, h);
+
+            // 4. Composite: Keep Healed Fill ONLY where Mask is White
+            // Destination = FillCanvas
+            // Source = MaskCanvas (Destination-In) keeps Destination where Source is opaque
+            
+            const finalPatchCanvas = document.createElement('canvas');
+            finalPatchCanvas.width = w; finalPatchCanvas.height = h;
+            const fpCtx = finalPatchCanvas.getContext('2d');
+            
+            fpCtx.drawImage(fillCanvas, 0, 0);
+            fpCtx.globalCompositeOperation = 'destination-in';
+            fpCtx.drawImage(maskCanvas, 0, 0);
+            
+            // 5. Add Result to Images
+            const newIb = new ImageBlock(minX, minY, finalPatchCanvas.toDataURL(), w, h);
+            newIb.load(()=>{ 
+                images.push(newIb); 
+                maskStrokes = []; // Clear mask
+                applyMaskBtn.disabled = true;
+                loadingOverlay.classList.add('hidden');
+                recordHistory(); saveToDB(true); 
+                draw(); 
+                showToast("已完成智慧去印");
+            });
+        }
+
+
+        // Rename old rectangular removal for clarity
+        function removeWatermarkSelection() {
+            if(!img.src || !selectionBox.active) return;
+            const box = {...selectionBox}; selectionBox.active=false;
+            draw(); 
+            
+            const w = Math.floor(box.w);
+            const h = Math.floor(box.h);
+            
+            const tCanvas = document.createElement('canvas'); 
+            const tCtx = tCanvas.getContext('2d');
+            tCanvas.width = w; tCanvas.height = h;
+            
+            // Draw original rect
+            tCtx.drawImage(img, box.x, box.y, box.w, box.h, 0, 0, w, h);
+            
+            // "Inpainting" by stretching borders inwards with blur
+            // 1. Top
+            tCtx.drawImage(img, box.x, box.y, box.w, 1, 0, 0, w, h/2);
+            // 2. Bottom
+            tCtx.drawImage(img, box.x, box.y + box.h - 1, box.w, 1, 0, h/2, w, h/2);
+            
+            // Blend Left/Right on top (50% opacity?)
+            const tCanvas2 = document.createElement('canvas');
+            tCanvas2.width = w; tCanvas2.height = h;
+            const tCtx2 = tCanvas2.getContext('2d');
+            
+            tCtx2.drawImage(img, box.x, box.y, 1, box.h, 0, 0, w/2, h);
+            tCtx2.drawImage(img, box.x + box.w - 1, box.y, 1, box.h, w/2, 0, w/2, h);
+            
+            // Blend them
+            tCtx.globalAlpha = 0.5;
+            tCtx.drawImage(tCanvas2, 0, 0);
+            tCtx.globalAlpha = 1.0;
+            
+            // Blur it heavily to smooth
+            const blurAmount = Math.min(w, h) / 10;
+            const tiny = document.createElement('canvas');
+            tiny.width = Math.max(1, w/10); tiny.height = Math.max(1, h/10);
+            const tinyCtx = tiny.getContext('2d');
+            tinyCtx.drawImage(tCanvas, 0, 0, tiny.width, tiny.height);
+            
+            tCtx.drawImage(tiny, 0, 0, w, h);
+            
+            const newIb = new ImageBlock(box.x, box.y, tCanvas.toDataURL(), box.w, box.h);
+            newIb.load(()=>{ 
+                images.push(newIb); 
+                recordHistory(); saveToDB(true); 
+                draw(); 
+            });
+        }
+
+        // --- Remove Background Tools ---
+        function startPickRemoveBg() {
+            isRemovingBg = !isRemovingBg;
+            const btn = document.getElementById('pickRemoveBgBtn');
+            if(isRemovingBg) {
+                btn.classList.remove('bg-purple-600', 'hover:bg-purple-700');
+                btn.classList.add('bg-red-600', 'hover:bg-red-700');
+                btn.innerHTML = '<i class="fas fa-times"></i> 取消吸色';
+                canvas.classList.add('cursor-magic');
+            } else {
+                btn.classList.remove('bg-red-600', 'hover:bg-red-700');
+                btn.classList.add('bg-purple-600', 'hover:bg-purple-700');
+                btn.innerHTML = '<i class="fas fa-eye-dropper"></i> 吸色去背';
+                canvas.classList.remove('cursor-magic');
+            }
+        }
+        
+        function removeColorFromImage(imageBlock, targetColor, tolerance) {
+            const canvas = document.createElement('canvas');
+            canvas.width = imageBlock.width;
+            canvas.height = imageBlock.height;
+            const ctx = canvas.getContext('2d');
+            ctx.drawImage(imageBlock.imgElement, 0, 0);
+            
+            const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+            const d = imageData.data;
+            const w = canvas.width, h = canvas.height;
+            
+            const rT = targetColor[0], gT = targetColor[1], bT = targetColor[2];
+            const tolSq = tolerance * tolerance;
+            
+            const stack = [[0,0]]; 
+            
+            for(let i=0; i<d.length; i+=4) {
+                if(d[i+3] === 0) continue;
+                const r = d[i], g = d[i+1], b = d[i+2];
+                if( ((r-rT)**2 + (g-gT)**2 + (b-bT)**2) <= tolSq ) {
+                    d[i+3] = 0;
+                }
+            }
+
+            ctx.putImageData(imageData, 0, 0);
+            imageBlock.src = canvas.toDataURL();
+            imageBlock.load(()=>{ draw(); recordHistory(); saveToDB(true); });
+        }
+
+
+        function eraseSelection() {
+            if (!selectionBox.active) return;
+            const box={...selectionBox}; selectionBox.active = false; draw();
+            const bg = getDominantBorderColor(box.x, box.y, box.w, box.h); 
+            patches.push(new PatchBlock(box.x, box.y, box.w, box.h, bg));
+            recordHistory(); saveToDB(true); draw();
+        }
+
+        function getDominantBorderColor(x, y, w, h) {
+            try {
+                const m=4, cw=canvas.width, ch=canvas.height;
+                const sx=Math.max(0,Math.floor(x)), sy=Math.max(0,Math.floor(y));
+                const sw=Math.min(cw-sx,Math.floor(w)), sh=Math.min(ch-sy,Math.floor(h));
+                if(sw<=0||sh<=0)return '#ffffff';
+
+                const points=[];
+                for(let i=0;i<sw;i+=2){points.push({x:sx+i,y:Math.max(0,sy-2)}); points.push({x:sx+i,y:Math.min(ch-1,sy+sh+2)});}
+                for(let j=0;j<sh;j+=2){points.push({x:Math.max(0,sx-2),y:sy+j}); points.push({x:Math.min(cw-1,sx+sw+2),y:sy+j});}
+
+                const counts={}; let max=0, dom='#ffffff';
+                points.forEach(p=>{
+                    const d=ctx.getImageData(p.x,p.y,1,1).data;
+                    const r=Math.round(d[0]/10)*10, g=Math.round(d[1]/10)*10, b=Math.round(d[2]/10)*10;
+                    const k=`${r},${g},${b}`;
+                    counts[k]=(counts[k]||0)+1;
+                    if(counts[k]>max){ max=counts[k]; dom="#"+((1<<24)+(r<<16)+(g<<8)+b).toString(16).slice(1); }
+                });
+                return dom;
+            } catch { return '#ffffff'; }
+        }
+
+        // --- Inputs Binding ---
+        function bind(el, prop, parse) {
+            el.addEventListener('input', () => {
+                if(selectedIndex===-1)return;
+                let list = selectedType==='text'?texts:selectedType==='image'?images:blocks;
+                let val = el.value; if(parse) val = parse(val);
+                list[selectedIndex][prop] = val;
+                if(selectedType==='text' && texts[selectedIndex].autoFit) refitTextBlock(texts[selectedIndex]);
+                draw(); saveToDB(true);
+            });
+            el.addEventListener('change', () => { recordHistory(); }); 
+        }
+        bind(textInput,'text'); bind(fontSizeInput,'fontSize',parseInt); bind(textColorInput,'color');
+        bind(bgColorInput,'bgColor'); bind(paddingInput,'padding',parseInt); bind(lineHeightInput,'lineHeight',parseFloat);
+        bind(letterSpacingInput,'letterSpacing',parseInt); bind(imgScaleInput,'scale',parseFloat); bind(blockColorInput,'color');
+        
+        bgToleranceInput.addEventListener('input', (e) => {
+            bgToleranceVal.textContent = e.target.value;
+        });
+        brushSizeInput.addEventListener('input', (e) => {
+             brushSizeVal.textContent = e.target.value;
+        });
+
+        hasBackgroundInput.addEventListener('change', e=>{ if(selectedIndex!==-1 && selectedType==='text') { texts[selectedIndex].hasBackground = e.target.checked; draw(); recordHistory(); saveToDB(true); } });
+        fontFamilyInput.addEventListener('change', e=>{ if(selectedIndex!==-1 && selectedType==='text') { texts[selectedIndex].fontFamily = e.target.value; if(texts[selectedIndex].autoFit) refitTextBlock(texts[selectedIndex]); draw(); recordHistory(); saveToDB(true); } });
+        fontWeightInput.addEventListener('change', e=>{ if(selectedIndex!==-1 && selectedType==='text') { texts[selectedIndex].fontWeight = e.target.value; if(texts[selectedIndex].autoFit) refitTextBlock(texts[selectedIndex]); draw(); recordHistory(); saveToDB(true); } });
+
+        function setTextAlign(a){if(selectedIndex!==-1&&selectedType==='text'){texts[selectedIndex].textAlign=a;updateInputs();draw();recordHistory();saveToDB(true);}}
+        function deleteSelected(){if(selectedIndex!==-1){if(selectedType==='text')texts.splice(selectedIndex,1);else if(selectedType==='image')images.splice(selectedIndex,1);else blocks.splice(selectedIndex,1);deselectAll();draw();recordHistory();saveToDB(true);}}
+        function clearPatches(){if(confirm("清除塗層?")){patches=[];draw();recordHistory();saveToDB(true);}}
+        function clearAllTexts(){if(confirm("重置?")){resetCanvas(true);saveToDB(true);}}
+        function selectItem(t, i) { 
+            selectedType=t; selectedIndex=i; selectionBox.active=false; updateSelectionBtns(); updateInputs();
+            textProperties.classList.add('hidden'); imageProperties.classList.add('hidden'); blockProperties.classList.add('hidden');
+            if(t==='text'){textProperties.classList.remove('hidden'); textPropHint.textContent=texts[i].autoFit?"拖曳改變範圍 (智慧填滿)":"拖曳縮放字體";}
+            if(t==='image')imageProperties.classList.remove('hidden'); if(t==='block')blockProperties.classList.remove('hidden');
+        }
+        function deselectAll() { selectedType=null; selectedIndex=-1; textProperties.classList.add('hidden'); imageProperties.classList.add('hidden'); blockProperties.classList.add('hidden'); updateSelectionBtns(); }
+        
+        function updateInputs() {
+            if(selectedIndex===-1){textInput.value="";return;}
+            if(selectedType==='text'){
+                const b=texts[selectedIndex]; textInput.value=b.text; fontSizeInput.value=b.fontSize; textColorInput.value=b.color; textColorHex.textContent=b.color;
+                bgColorInput.value=b.bgColor; hasBackgroundInput.checked=b.hasBackground; paddingInput.value=b.padding; lineHeightInput.value=b.lineHeight; letterSpacingInput.value=b.letterSpacing;
+                fontFamilyInput.value=b.fontFamily;
+            } else if(selectedType==='image') imgScaleInput.value=images[selectedIndex].scale;
+            else { blockColorInput.value=blocks[selectedIndex].color; }
+        }
+        function pickColor(x,y) { const h=getDominantBorderColor(x,y,1,1); if(selectedIndex!==-1){ if(selectedType==='text'){texts[selectedIndex].bgColor=h;texts[selectedIndex].hasBackground=true;} else if(selectedType==='block') blocks[selectedIndex].color=h; updateInputs(); recordHistory(); } draw(); }
+        function activateEyedropper() { setTool(currentTool==='picker'?'select':'picker'); }
+        function addText() { texts.push(new TextBlock(canvas.width/2-50, canvas.height/2-15, "文字", 30)); selectItem('text', texts.length-1); recordHistory(); saveToDB(true); draw(); }
+        function addQRCode() { const u=prompt("URL"); if(u){ const d=document.createElement('div'); new QRCode(d,{text:u}); setTimeout(()=>{ const i=d.querySelector('img'); if(i){ const b=new ImageBlock(0,0,i.src,0,0); b.load(()=>{ b.x=canvas.width/2-64;b.y=canvas.height/2-64;images.push(b);recordHistory();saveToDB(true);draw(); }); } },100); } }
+        function downloadImage() {
+            if(!img.src)return; const sv={...view},ss=selectionBox.active,si=selectedIndex; selectionBox.active=false;selectedIndex=-1;selectedType=null;draw();
+            const l=document.createElement('a');l.download='edit_'+Date.now()+'.png';l.href=canvas.toDataURL();l.click();
+            selectionBox.active=ss;selectedIndex=si;view=sv;draw();
+        }
+    </script>
+</body>
+</html>
